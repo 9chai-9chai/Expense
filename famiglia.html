@@ -1,0 +1,3295 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#F5F4EF"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Famiglia"/>
+<title>Famiglia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// ══════════════════════════════════════════
+// FIREBASE CONFIG + REAL-TIME SYNC
+// ══════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyB9UH5UmdA4nOU6T0iiGQ_elM0rwwgGIjA",
+  authDomain: "chai-a4090.firebaseapp.com",
+  databaseURL: "https://chai-a4090-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "chai-a4090",
+  storageBucket: "chai-a4090.firebasestorage.app",
+  messagingSenderId: "529436503721",
+  appId: "1:529436503721:web:484d159ef8bffb1b2dc3b8"
+};
+var _fbReady = false;
+var _fbRef = null;
+var _syncTimer;
+
+function showSyncStatus(msg) {
+  var el = document.getElementById("syncStatus");
+  if (!el) return;
+  el.textContent = msg; el.style.opacity = "1";
+  clearTimeout(_syncTimer); _syncTimer = setTimeout(function(){ el.style.opacity="0"; }, 2500);
+}
+
+function persistToFirebase() {
+  if (!_fbRef) {
+    // Firebase ยังไม่พร้อม — queue ไว้ retry ใน 1 วิ
+    setTimeout(function(){ if(_fbRef) persistToFirebase(); }, 1000);
+    return;
+  }
+  try {
+    _fbRef.set(JSON.parse(JSON.stringify(D)))
+      .then(function(){ showSyncStatus('☁️ ซิงค์แล้ว'); })
+      .catch(function(err){
+        console.error('Firebase write error:', err);
+        showSyncStatus('⚠️ ' + (err.code || err.message || 'บันทึกไม่สำเร็จ'));
+      });
+  } catch(e) {
+    console.error('persistToFirebase error:', e);
+  }
+}
+
+// เริ่ม Firebase หลัง DOM โหลดเสร็จ
+// Firebase init moved to end of script
+</script>
+<style>
+/* ═══════════════════════════════════════════════
+   FAMIGLIA v6  ·  Family Budget Tracker
+   Clean · Purposeful · Production-grade
+═══════════════════════════════════════════════ */
+
+:root {
+  /* Palette — warm neutral base */
+  --bg:     #F5F4EF;
+  --bg2:    #EBEBDF;
+  --surf:   #FFFFFF;
+  --surf2:  #F9F8F5;
+  --surf3:  #EEEDEA;
+
+  /* Borders */
+  --bdr:    #E2E0D6;
+  --bdr2:   #C8C6B4;
+
+  /* Text */
+  --txt:    #18180E;
+  --txt2:   #42413A;
+  --txt3:   #8C8A7C;
+
+  /* Brand */
+  --grn:    #1A6B3C;
+  --grn2:   #135530;
+  --grn-bg: #E8F4EC;
+  --grn-lt: #D0EDD9;
+
+  /* States */
+  --red:     #C0292A;
+  --red-bg:  #FDECEC;
+  --red-lt:  #FACACA;
+  --org:     #C47A00;
+  --org-bg:  #FEF4DC;
+  --blu:     #1A56A0;
+
+  /* Semantic */
+  --inc:    #1A6B3C;
+  --exp:    #C0292A;
+  --warn:   #C47A00;
+  --danger: #C0292A;
+
+  /* Member accent colours */
+  --MC0:#1A6B3C;--MC1:#1A56A0;--MC2:#C0357A;--MC3:#C47A00;
+  --MC4:#6B35B5;--MC5:#0884A8;--MC6:#B82828;--MC7:#087050;
+
+  /* Shape */
+  --r:  16px;
+  --r2: 11px;
+  --r3:  8px;
+  --r4:  6px;
+
+  /* Typography */
+  --sans: 'Sarabun', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+
+  /* Elevation */
+  --sh0: 0 1px 2px rgba(0,0,0,.06);
+  --sh1: 0 2px 6px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05);
+  --sh2: 0 6px 18px rgba(0,0,0,.09), 0 2px 6px rgba(0,0,0,.05);
+  --sh3: 0 12px 32px rgba(0,0,0,.12), 0 4px 8px rgba(0,0,0,.06);
+
+  /* Transition */
+  --fast: .12s ease;
+  --mid:  .2s ease;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100% }
+html, body {
+  height: 100%;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--txt);
+  font-size: 15px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ════════════════════════════════════════════
+   APP SHELL
+════════════════════════════════════════════ */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg);
+}
+
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  padding-top: max(14px, env(safe-area-inset-top));
+  flex-shrink: 0;
+  background: var(--surf);
+  border-bottom: 1px solid var(--bdr);
+  box-shadow: var(--sh0);
+  z-index: 20;
+}
+
+#content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+#content.noscroll { overflow-y: hidden }
+
+#navbar {
+  display: flex;
+  border-top: 1px solid var(--bdr);
+  flex-shrink: 0;
+  background: var(--surf);
+  box-shadow: 0 -1px 0 var(--bdr), 0 -4px 16px rgba(0,0,0,.05);
+  z-index: 20;
+}
+
+/* ════════════════════════════════════════════
+   TOPBAR
+════════════════════════════════════════════ */
+#appLogo {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--grn);
+  letter-spacing: -.5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#appLogo::before {
+  content: '🌿';
+  font-size: 16px;
+}
+#appLogo span {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--txt3);
+  background: var(--bg2);
+  border-radius: 5px;
+  padding: 2px 6px;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+
+#curUserBtn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 22px;
+  background: var(--surf2);
+  border: 1.5px solid var(--bdr);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--sans);
+  transition: var(--fast);
+  flex: 1;
+  min-width: 0;
+  max-width: 150px;
+  margin: 0 auto;
+  overflow: hidden;
+  box-shadow: var(--sh0);
+}
+#curUserBtn:active { background: var(--surf3); transform: scale(.96) }
+#cDot { width: 7px; height: 7px; border-radius: 50%; background: var(--grn); flex-shrink: 0 }
+
+.tbtn {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r3);
+  border: 1.5px solid var(--bdr);
+  background: var(--surf);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: var(--fast);
+}
+.tbtn:active { background: var(--surf3); transform: scale(.92) }
+
+/* ════════════════════════════════════════════
+   NAVBAR
+════════════════════════════════════════════ */
+.ntab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 4px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  gap: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  color: var(--txt3);
+  border: none;
+  background: none;
+  font-family: var(--sans);
+  position: relative;
+  transition: color var(--fast);
+  -webkit-user-select: none;
+  user-select: none;
+}
+.ntab.active { color: var(--grn) }
+.ntab.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  background: var(--grn);
+  border-radius: 0 0 3px 3px;
+}
+.ntab-icon { font-size: 20px; line-height: 1 }
+
+/* ════════════════════════════════════════════
+   PAGES
+════════════════════════════════════════════ */
+.page { display: none; padding-bottom: 24px }
+.page.active { display: block }
+.sec { padding: 14px 16px }
+.sec-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px }
+.sec-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--txt3);
+}
+
+/* ════════════════════════════════════════════
+   MONTH STRIP
+════════════════════════════════════════════ */
+#monthStrip {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--surf);
+  border-bottom: 1px solid var(--bdr);
+}
+#monthStrip::-webkit-scrollbar { display: none }
+.mchip {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border-radius: 22px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--bdr);
+  background: var(--bg);
+  color: var(--txt2);
+  transition: var(--fast);
+  font-family: var(--sans);
+}
+.mchip.active {
+  background: var(--grn);
+  color: #fff;
+  border-color: var(--grn);
+  box-shadow: 0 2px 10px rgba(26,107,60,.28);
+}
+
+/* ════════════════════════════════════════════
+   ALERT BANNERS
+════════════════════════════════════════════ */
+#alertBanner { padding: 10px 16px 2px }
+.al-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: var(--r2);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.al-dng { background: var(--red-bg); color: #7A0000; border: 1.5px solid var(--red-lt) }
+.al-wrn { background: var(--org-bg); color: #6B3F00; border: 1.5px solid #F5D878 }
+.al-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0 }
+
+/* ════════════════════════════════════════════
+   KPI CARDS
+════════════════════════════════════════════ */
+#kpiGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px 16px 8px;
+}
+.kcard {
+  background: var(--surf);
+  border: 1.5px solid var(--bdr);
+  border-radius: var(--r);
+  padding: 14px;
+  box-shadow: var(--sh1);
+  transition: box-shadow var(--fast);
+}
+.kcard:active { box-shadow: var(--sh0) }
+.kcard-lbl {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--txt3);
+  margin-bottom: 5px;
+}
+.kcard-val { font-family: var(--mono); font-size: 21px; font-weight: 700; line-height: 1.1 }
+.kcard-val.red { color: var(--exp) }
+.kcard-val.grn { color: var(--inc) }
+.kcard-sub { font-size: 12px; color: var(--txt3); margin-top: 4px }
+
+/* ════════════════════════════════════════════
+   BUDGET BARS
+════════════════════════════════════════════ */
+#budgetSection { padding: 0 16px 12px }
+.bsec {
+  background: var(--surf);
+  border: 1.5px solid var(--bdr);
+  border-radius: var(--r);
+  padding: 14px;
+  box-shadow: var(--sh1);
+}
+.brow {
+  display: grid;
+  grid-template-columns: 36px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--bdr);
+}
+.brow:last-child { border-bottom: none }
+.bav { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px }
+.bwrap { display: flex; flex-direction: column; gap: 5px }
+.binfo { display: flex; justify-content: space-between; font-size: 12px; color: var(--txt2) }
+.btrack { height: 6px; border-radius: 3px; background: var(--surf3); overflow: hidden }
+.bfill { height: 100%; border-radius: 3px; transition: width .5s cubic-bezier(.4,0,.2,1) }
+.bpct { font-family: var(--mono); font-size: 13px; font-weight: 700; text-align: right }
+
+/* ════════════════════════════════════════════
+   FAMILY NAV
+════════════════════════════════════════════ */
+#fnav {
+  display: flex;
+  gap: 7px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--surf);
+  border-bottom: 1px solid var(--bdr);
+}
+#fnav::-webkit-scrollbar { display: none }
+.fchip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 22px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--bdr);
+  background: var(--bg);
+  color: var(--txt2);
+  transition: var(--fast);
+  font-family: var(--sans);
+}
+.fchip.active {
+  color: #fff;
+  border-color: var(--grn);
+  background: var(--grn);
+  box-shadow: 0 2px 10px rgba(26,107,60,.28);
+}
+
+/* ════════════════════════════════════════════
+   CHARTS
+════════════════════════════════════════════ */
+.chart-wrap { padding: 0 16px 12px }
+.chart-box {
+  background: var(--surf);
+  border: 1.5px solid var(--bdr);
+  border-radius: var(--r);
+  padding: 14px;
+  box-shadow: var(--sh1);
+}
+.ctabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap }
+.ctab {
+  padding: 5px 11px;
+  border-radius: var(--r2);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--bdr);
+  color: var(--txt3);
+  background: var(--bg);
+  transition: var(--fast);
+  font-family: var(--sans);
+}
+.ctab.active { background: var(--grn); color: #fff; border-color: var(--grn) }
+
+/* ════════════════════════════════════════════
+   ADD ENTRY FORM  (No numpad — native keyboard)
+════════════════════════════════════════════ */
+#calcWrap { padding: 16px 16px 8px }
+
+/* Type toggle */
+.calc-type-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: var(--r2);
+  overflow: hidden;
+  border: 1.5px solid var(--bdr);
+  margin-bottom: 16px;
+  box-shadow: var(--sh0);
+}
+.calc-type-btn {
+  padding: 12px 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: var(--surf2);
+  color: var(--txt3);
+  transition: var(--fast);
+  font-family: var(--sans);
+  text-align: center;
+}
+.calc-type-btn.exp.on { background: var(--red-bg); color: var(--exp) }
+.calc-type-btn.inc.on { background: var(--grn-bg); color: var(--inc) }
+
+/* Amount input — large, numeric keyboard */
+.add-amt-input {
+  font-family: var(--mono);
+  font-size: 36px;
+  font-weight: 700;
+  text-align: right;
+  padding: 14px 16px;
+  height: auto;
+  letter-spacing: -.5px;
+  border-radius: var(--r);
+  border: 2px solid var(--bdr);
+  background: var(--surf);
+  color: var(--txt);
+  width: 100%;
+  display: block;
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+.add-amt-input:focus {
+  outline: none;
+  border-color: var(--grn);
+  box-shadow: 0 0 0 4px rgba(26,107,60,.1);
+}
+.add-amt-input::placeholder { color: var(--bdr2); font-weight: 400; font-size: 24px }
+
+/* Save button */
+.add-save-btn {
+  width: 100%;
+  padding: 16px;
+  font-size: 17px;
+  border-radius: var(--r);
+  letter-spacing: .2px;
+  font-weight: 800;
+  transition: var(--fast);
+  border: none;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.add-save-btn.exp-mode {
+  background: var(--exp);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(192,41,42,.3);
+}
+.add-save-btn.inc-mode {
+  background: var(--grn);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(26,107,60,.3);
+}
+.add-save-btn:active { transform: scale(.98); filter: brightness(.92) }
+
+/* ── Quick Category Grid ── */
+.qcat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-bottom: 6px;
+}
+.qcat-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 3px;
+  border-radius: var(--r3);
+  border: 1.5px solid var(--bdr);
+  background: var(--bg);
+  cursor: pointer;
+  transition: var(--fast);
+  font-family: var(--sans);
+  -webkit-user-select: none;
+}
+.qcat-btn .qcat-em { font-size: 18px; line-height: 1 }
+.qcat-btn .qcat-nm {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--txt3);
+  text-align: center;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+.qcat-btn.on { border-color: var(--exp); background: var(--red-bg) }
+.qcat-btn.on .qcat-nm { color: var(--exp) }
+.qcat-btn.on-inc { border-color: var(--inc); background: var(--grn-bg) }
+.qcat-btn.on-inc .qcat-nm { color: var(--inc) }
+.qcat-btn:active { transform: scale(.90) }
+
+.qcat-more {
+  grid-column: span 4;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--txt3);
+  padding: 6px;
+  cursor: pointer;
+  border-radius: var(--r3);
+  border: 1.5px dashed var(--bdr2);
+  background: var(--bg);
+  font-family: var(--sans);
+  transition: var(--fast);
+}
+.qcat-more:active { background: var(--surf3) }
+
+.cat-scroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 0 4px;
+  margin-bottom: 8px;
+}
+.cat-scroll::-webkit-scrollbar { display: none }
+.cchip {
+  flex-shrink: 0;
+  padding: 6px 13px;
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--bdr);
+  background: var(--bg);
+  color: var(--txt2);
+  transition: var(--fast);
+  white-space: nowrap;
+  font-family: var(--sans);
+}
+.cchip.on { background: var(--red-bg); color: var(--exp); border-color: var(--exp) }
+.cchip.on-inc { background: var(--grn-bg); color: var(--inc); border-color: var(--inc) }
+
+/* ── Recent list wrapper ── */
+#recentWrap { padding: 0 16px 16px }
+
+/* ── Auto-suggest ── */
+.suggest-wrap { position: relative }
+.suggest-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--surf);
+  border: 1.5px solid var(--bdr);
+  border-top: none;
+  border-radius: 0 0 var(--r2) var(--r2);
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: var(--sh2);
+  display: none;
+}
+.suggest-list.open { display: block }
+.sug-item {
+  padding: 11px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--bdr);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background var(--fast);
+}
+.sug-item:last-child { border-bottom: none }
+.sug-item:hover, .sug-item.hi { background: var(--surf2) }
+.sug-ico { font-size: 17px; flex-shrink: 0 }
+.sug-main { flex: 1; font-weight: 600 }
+.sug-amt { font-family: var(--mono); font-size: 12px; color: var(--txt3) }
+
+/* ════════════════════════════════════════════
+   TRANSACTIONS PAGE
+════════════════════════════════════════════ */
+.search-wrap {
+  padding: 10px 16px;
+  background: var(--surf);
+  border-bottom: 1px solid var(--bdr);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#txSearch {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: var(--r2);
+  border: 1.5px solid var(--bdr);
+  font-size: 14px;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--txt);
+  transition: border-color var(--fast);
+}
+#txSearch:focus { outline: none; border-color: var(--grn); box-shadow: 0 0 0 3px rgba(26,107,60,.09) }
+#txSearch::placeholder { color: var(--txt3) }
+
+.tx-filter {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  flex-wrap: wrap;
+  background: var(--surf);
+  border-bottom: 1px solid var(--bdr);
+}
+.tx-fi {
+  flex: 1;
+  min-width: 90px;
+  font-size: 13px;
+  padding: 7px 8px;
+  border: 1.5px solid var(--bdr);
+  border-radius: var(--r3);
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--sans);
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238C8A7C'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+  transition: border-color var(--fast);
+}
+.tx-fi:focus { outline: none; border-color: var(--grn); }
+
+.sort-bar {
+  display: flex;
+  gap: 5px;
+  padding: 7px 10px;
+  background: var(--surf2);
+  border-bottom: 1px solid var(--bdr);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.sort-bar::-webkit-scrollbar { display: none }
+.sort-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--bdr);
+  background: var(--bg);
+  color: var(--txt3);
+  font-family: var(--sans);
+  transition: var(--fast);
+  white-space: nowrap;
+}
+.sort-btn.active { background: var(--grn); color: #fff; border-color: var(--grn) }
+
+/* Transaction list rows */
+.txi {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--bdr);
+  background: var(--surf);
+  transition: background var(--fast);
+}
+.txi:last-child { border-bottom: none }
+.txi:active { background: var(--surf2) }
+.txic {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.txin { flex: 1; min-width: 0 }
+.txde { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.txme { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 2px }
+.txme span { font-size: 11.5px; color: var(--txt3) }
+.txdot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0 }
+.txam { font-family: var(--mono); font-size: 15px; font-weight: 700; text-align: right; flex-shrink: 0 }
+.txac { display: flex; gap: 5px; margin-left: 6px; flex-shrink: 0 }
+.tbadge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: var(--r4);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.tbinc { background: var(--grn-bg); color: #0A4820 }
+.tbexp { background: var(--red-bg); color: #7A0000 }
+.txempty { padding: 52px 16px; text-align: center; color: var(--txt3); font-size: 16px; line-height: 2.4 }
+#txTotal {
+  font-size: 11px;
+  color: var(--txt3);
+  font-weight: 800;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--bdr);
+  background: var(--surf2);
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+
+/* ── Month strip TX ── */
+.tx-month-strip {
+  display: flex;
+  gap: 5px;
+  padding: 7px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--bdr);
+  -webkit-overflow-scrolling: touch;
+}
+.tx-month-strip::-webkit-scrollbar { display: none }
+
+/* ════════════════════════════════════════════
+   CALENDAR
+════════════════════════════════════════════ */
+.cal-wrap { padding: 10px 16px 0 }
+.cal-box {
+  background: var(--surf);
+  border: 1.5px solid var(--bdr);
+  border-radius: var(--r);
+  overflow: hidden;
+  margin-bottom: 8px;
+  box-shadow: var(--sh1);
+}
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--surf2);
+  border-bottom: 1px solid var(--bdr);
+}
+.cal-nav {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r3);
+  border: 1.5px solid var(--bdr);
+  background: var(--surf);
+  cursor: pointer;
+  font-size: 17px;
+  flex-shrink: 0;
+  transition: var(--fast);
+}
+.cal-nav:active { background: var(--surf3) }
+.cal-month-title { font-size: 14px; font-weight: 800; color: var(--txt) }
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); padding: 8px 10px 10px; gap: 2px }
+.cal-dow { font-size: 10px; font-weight: 800; color: var(--txt3); text-align: center; padding: 4px 0; text-transform: uppercase; letter-spacing: .4px }
+.cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  color: var(--txt);
+  transition: background var(--fast);
+}
+.cal-day:hover { background: var(--surf2) }
+.cal-day.today { font-weight: 800; color: var(--grn) }
+.cal-day.today::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--grn);
+}
+.cal-day.selected { background: var(--grn); color: #fff; font-weight: 800 }
+.cal-day.selected::after { display: none }
+.cal-day.has-tx { font-weight: 800 }
+.cal-day.has-tx::before {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--exp);
+  opacity: .55;
+}
+.cal-day.empty { pointer-events: none }
+.cal-day.other-month { color: var(--txt3); opacity: .35 }
+.cal-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--grn);
+  cursor: pointer;
+  border-top: 1px solid var(--bdr);
+}
+.cal-toggle svg { transition: .2s }
+.cal-toggle.open svg { transform: rotate(180deg) }
+
+/* ════════════════════════════════════════════
+   RECURRING
+════════════════════════════════════════════ */
+.rec-timeline { padding: 0 16px }
+.rtl-item { display: flex; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--bdr) }
+.rtl-left { display: flex; flex-direction: column; align-items: center; width: 44px; flex-shrink: 0 }
+.rtl-day { font-family: var(--mono); font-size: 20px; font-weight: 700; line-height: 1 }
+.rtl-dow { font-size: 10px; color: var(--txt3); text-transform: uppercase; margin-top: 1px; letter-spacing: .4px }
+.rtl-line { width: 2px; flex: 1; background: var(--bdr); margin-top: 5px; min-height: 10px; border-radius: 1px }
+.rtl-body { flex: 1; min-width: 0 }
+.rtl-name { font-size: 15px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.rtl-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
+.rtl-meta span { font-size: 12px; color: var(--txt3) }
+.rtl-amt { font-family: var(--mono); font-size: 15px; font-weight: 700 }
+.rtl-badge { font-size: 11px; padding: 3px 8px; border-radius: var(--r4); font-weight: 700; letter-spacing: .2px }
+.rtl-od { background: var(--red-bg); color: #7A0000 }
+.rtl-sn { background: var(--org-bg); color: #6B3F00 }
+.rtl-ok { background: var(--grn-bg); color: #0A4820 }
+.rtl-acts { display: flex; gap: 5px; flex-shrink: 0; align-items: flex-start }
+.rgrp-hdr { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--txt3); padding: 16px 0 6px }
+
+/* ════════════════════════════════════════════
+   SETTINGS
+════════════════════════════════════════════ */
+.sett-card {
+  background: var(--surf);
+  border: 1.5px solid var(--bdr);
+  border-radius: var(--r);
+  margin: 0 16px 12px;
+  overflow: hidden;
+  box-shadow: var(--sh1);
+}
+.sett-hdr {
+  padding: 10px 14px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--txt3);
+  border-bottom: 1px solid var(--bdr);
+  background: var(--surf2);
+}
+.sett-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-bottom: 1px solid var(--bdr);
+}
+.sett-row:last-child { border-bottom: none }
+.sett-lbl { font-size: 15px; font-weight: 700 }
+.sett-sub { font-size: 12px; color: var(--txt3); margin-top: 2px }
+.lang-btns { display: flex; gap: 6px }
+
+/* ════════════════════════════════════════════
+   FORM ELEMENTS
+════════════════════════════════════════════ */
+.fi {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: var(--r2);
+  border: 1.5px solid var(--bdr);
+  background: var(--surf);
+  color: var(--txt);
+  font-size: 14px;
+  font-family: var(--sans);
+  -webkit-appearance: none;
+  transition: border-color var(--fast), box-shadow var(--fast);
+}
+.fi:focus {
+  outline: none;
+  border-color: var(--grn);
+  box-shadow: 0 0 0 3px rgba(26,107,60,.09);
+}
+.fi::placeholder { color: var(--txt3) }
+select.fi { cursor: pointer }
+.form-lbl {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--txt3);
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  margin-bottom: 6px;
+  display: block;
+}
+.form-row { margin-bottom: 14px }
+.form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+
+/* ════════════════════════════════════════════
+   BUTTONS
+════════════════════════════════════════════ */
+.btn {
+  padding: 10px 16px;
+  border-radius: var(--r2);
+  border: 1.5px solid transparent;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--sans);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: var(--fast);
+  letter-spacing: .1px;
+}
+.btn:active { transform: scale(.97) }
+.btn-pri { background: var(--grn); color: #fff; border-color: var(--grn) }
+.btn-pri:active { background: var(--grn2) }
+.btn-dng { background: var(--red-bg); color: var(--danger); border-color: var(--red-lt) }
+.btn-gh { background: var(--surf2); color: var(--txt2); border-color: var(--bdr) }
+.btn-suc { background: var(--grn-bg); color: var(--inc); border-color: var(--grn-lt) }
+.btn-xs { padding: 5px 10px; font-size: 12px; border-radius: var(--r3) }
+.btn-sm { padding: 9px 13px; font-size: 13px }
+.f1 { flex: 1 }
+
+/* ════════════════════════════════════════════
+   MODALS  (bottom sheet)
+════════════════════════════════════════════ */
+.modal-wrap {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.38);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .08s ease;
+  backdrop-filter: blur(3px);
+}
+.modal-wrap.open { opacity: 1; pointer-events: all }
+.modal {
+  background: var(--surf);
+  border-radius: 22px 22px 0 0;
+  width: 100%;
+  max-width: 480px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  transform: translateY(40px);
+  transition: transform .1s ease;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+.modal-wrap.open .modal { transform: translateY(0) }
+.modal-drag {
+  width: 36px;
+  height: 5px;
+  background: var(--bdr2);
+  border-radius: 3px;
+  margin: 10px auto 12px;
+}
+.modal-title { font-size: 17px; font-weight: 800; padding: 0 16px 12px; border-bottom: 1px solid var(--bdr) }
+.modal-body { padding: 14px 16px }
+.modal-footer { display: flex; gap: 10px; padding: 12px 16px 0; border-top: 1px solid var(--bdr) }
+.qa-type {
+  display: flex;
+  border-radius: var(--r2);
+  overflow: hidden;
+  border: 1.5px solid var(--bdr);
+  margin-bottom: 14px;
+}
+.qa-tbtn { flex: 1; padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; background: var(--surf2); color: var(--txt3); font-family: var(--sans); transition: var(--fast) }
+.qa-tbtn.exp.on { background: var(--red-bg); color: var(--exp) }
+.qa-tbtn.inc.on { background: var(--grn-bg); color: var(--inc) }
+
+/* ════════════════════════════════════════════
+   TOASTS
+════════════════════════════════════════════ */
+#toasts {
+  position: fixed;
+  bottom: max(90px, calc(72px + env(safe-area-inset-bottom)));
+  right: 12px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+.toast {
+  padding: 11px 15px;
+  border-radius: 11px;
+  background: var(--txt);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 270px;
+  border-left: 4px solid var(--grn);
+  box-shadow: var(--sh3);
+  pointer-events: all;
+}
+.toast.undo { cursor: pointer; border-left-color: var(--blu) }
+.toast.undo:hover { background: var(--blu); color: #fff }
+
+
+/* ── Scroll to Top button ── */
+/* Claude scroll buttons */
+#scrollBtns {
+  position: fixed;
+  bottom: max(80px, calc(62px + env(safe-area-inset-bottom)));
+  left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity .22s ease, transform .22s ease;
+}
+#scrollBtns.visible {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0);
+}
+.scroll-claude-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,.13);
+  transition: transform .12s ease, box-shadow .12s ease;
+  font-family: var(--sans);
+  position: relative;
+  overflow: hidden;
+}
+.scroll-claude-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(#D4A574 0deg, #C4856A 60deg, #9B6EA8 120deg, #7B8DC4 180deg, #6BAED6 240deg, #8BC4A8 300deg, #D4A574 360deg);
+  opacity: .18;
+}
+#scrollUpBtn {
+  background: #FDFCFB;
+  border: 1.5px solid #E8E0D8;
+  color: #5A4A3A;
+}
+#scrollDownBtn {
+  background: #FDFCFB;
+  border: 1.5px solid #E8E0D8;
+  color: #5A4A3A;
+}
+.scroll-claude-btn:active {
+  transform: scale(.9);
+  box-shadow: 0 1px 4px rgba(0,0,0,.1);
+}
+/* Claude logo dot inside buttons */
+.scroll-claude-btn svg { position: relative; z-index: 1 }
+
+/* Legacy hidden */
+#scrollTopBtn { display: none !important; }
+/* ════════════════════════════════════════════
+   CONFIRM DIALOG
+════════════════════════════════════════════ */
+#confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.38);
+  z-index: 400;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .08s ease;
+  backdrop-filter: blur(3px);
+}
+#confirmOverlay.open { opacity: 1; pointer-events: all }
+#confirmBox {
+  background: var(--surf);
+  border-radius: 22px 22px 0 0;
+  width: 100%;
+  max-width: 480px;
+  padding: 24px 18px max(24px, env(safe-area-inset-bottom));
+  transform: translateY(40px);
+  transition: transform .1s ease;
+}
+#confirmOverlay.open #confirmBox { transform: translateY(0) }
+#confirmIcon { font-size: 38px; text-align: center; margin-bottom: 8px }
+#confirmMsg { font-size: 17px; font-weight: 800; text-align: center; margin-bottom: 4px }
+#confirmSub { font-size: 13px; color: var(--txt3); text-align: center; margin-bottom: 22px }
+.confirm-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.confirm-btns button {
+  padding: 15px;
+  border-radius: var(--r2);
+  border: 1.5px solid transparent;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: var(--fast);
+}
+.confirm-btns button:active { transform: scale(.97) }
+#confirmCancel { background: var(--surf2); color: var(--txt2); border-color: var(--bdr) }
+#confirmOk { background: var(--danger); color: #fff; border-color: var(--danger) }
+
+/* ════════════════════════════════════════════
+   SMART ALERT BANNER
+════════════════════════════════════════════ */
+#smartAlert { width: 100%; flex-shrink: 0 }
+.smart-alert-bar {
+  margin: 0;
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  border-bottom: 1px solid transparent;
+  animation: slideDown .3s cubic-bezier(.34,1.3,.64,1);
+}
+@keyframes slideDown { from { transform: translateY(-100%); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+.sab-danger { background: var(--red-bg); border-color: var(--red-lt); color: #7A0000 }
+.sab-warn { background: var(--org-bg); border-color: #F5D878; color: #6B3F00 }
+.sab-dismiss { margin-left: auto; cursor: pointer; opacity: .5; font-size: 16px; line-height: 1; flex-shrink: 0; padding: 2px }
+.sab-dismiss:hover { opacity: 1 }
+.sab-icon { font-size: 16px; flex-shrink: 0 }
+.sab-msg { flex: 1; line-height: 1.35 }
+.sab-sub { font-size: 11px; font-weight: 500; opacity: .7; margin-top: 2px }
+
+/* ════════════════════════════════════════════
+   CAT MANAGER  /  MEMBER LIST
+════════════════════════════════════════════ */
+.catgrp { margin-bottom: 10px }
+.catgh {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  background: var(--surf2);
+  border-radius: var(--r2) var(--r2) 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1.5px solid var(--bdr);
+}
+.catgb { border: 1.5px solid var(--bdr); border-top: none; border-radius: 0 0 var(--r2) var(--r2); overflow: hidden }
+.catci {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--bdr);
+  background: var(--surf);
+}
+.catci:last-child { border-bottom: none }
+.catci span:first-child { font-size: 18px }
+.catci span:nth-child(2) { flex: 1 }
+.catdel {
+  padding: 5px 10px;
+  border-radius: var(--r3);
+  border: none;
+  background: var(--red-bg);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--sans);
+  font-weight: 700;
+}
+.mem-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--bdr) }
+.mem-em { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px }
+.mem-name { flex: 1; font-size: 15px; font-weight: 700 }
+
+/* ════════════════════════════════════════════
+   MISC  /  COMPAT (calc engine vars still used)
+════════════════════════════════════════════ */
+.empty-state { padding: 52px 16px; text-align: center; color: var(--txt3); font-size: 16px; line-height: 2.4 }
+.calc-expr { font-size: 13px; color: var(--txt3); font-family: var(--mono); min-height: 18px; text-align: right; padding-bottom: 2px; word-break: break-all }
+.calc-display { background: var(--surf); border: 1.5px solid var(--bdr); border-radius: var(--r); padding: 10px 12px 8px; margin-bottom: 8px; box-shadow: var(--sh1) }
+.calc-desc-row { display: flex; gap: 6px; margin-bottom: 6px }
+.calc-meta-row { display: flex; gap: 6px }
+.calc-amt-display { font-family: var(--mono); font-size: 26px; font-weight: 700; text-align: right; min-height: 34px; padding: 1px 0 3px; color: var(--txt3); word-break: break-all; line-height: 1.1 }
+.calc-amt-display.has-val { color: var(--txt) }
+.numpad-real { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px }
+.nk { height: 46px; border-radius: var(--r2); border: 1.5px solid var(--bdr); background: var(--surf); font-size: 19px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: var(--mono); color: var(--txt); -webkit-user-select: none; user-select: none; box-shadow: 0 2px 0 var(--bdr2); transition: .08s; position: relative; top: 0 }
+.nk:active { top: 2px; box-shadow: none; background: var(--surf3) }
+.nk.z { background: var(--surf2); font-size: 13px; color: var(--txt2); font-family: var(--sans); font-weight: 700 }
+.nk.del { background: var(--red-bg); color: var(--danger); border-color: var(--red-lt); font-size: 16px }
+.nk.clr { background: var(--org-bg); color: var(--warn); border-color: #F5D878; font-size: 12px; font-family: var(--sans); font-weight: 800 }
+.nk.op { background: #FFF8E8; color: #C47A00; border-color: #F5CC70; font-size: 18px; font-weight: 700 }
+.nk.eq { background: var(--grn); color: #fff; border-color: var(--grn); font-size: 20px; font-weight: 900; box-shadow: 0 2px 0 #0F4826 }
+.nk.sav { background: var(--exp); color: #fff; border-color: var(--exp); font-size: 12px; font-family: var(--sans); font-weight: 800; box-shadow: 0 2px 0 #7A1212 }
+.nk.sav.inc { background: var(--inc); border-color: var(--inc); box-shadow: 0 2px 0 #0E4226 }
+
+/* ════════════════════════════════════════════
+   ICON PICKER MODAL
+════════════════════════════════════════════ */
+#iconPickerOverlay {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 500;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease;
+}
+#iconPickerOverlay.open { opacity: 1; pointer-events: all }
+#iconPickerPanel {
+  background: var(--surf);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 480px;
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--sh3);
+  overflow: hidden;
+  animation: slideUpIP .22s cubic-bezier(.4,0,.2,1);
+}
+@keyframes slideUpIP { from { transform: translateY(100%) } to { transform: translateY(0) } }
+#iconPickerHeader {
+  padding: 14px 16px 6px;
+  border-bottom: 1px solid var(--bdr);
+  flex-shrink: 0;
+}
+#iconPickerTitle {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#iconSearchInput {
+  width: 100%;
+  padding: 9px 13px;
+  border-radius: var(--r2);
+  border: 1.5px solid var(--bdr);
+  background: var(--bg);
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--txt);
+  outline: none;
+}
+#iconSearchInput:focus { border-color: var(--grn); box-shadow: 0 0 0 3px rgba(26,107,60,.1) }
+.icon-tabs {
+  display: flex;
+  gap: 5px;
+  padding: 8px 14px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--bdr);
+}
+.icon-tabs::-webkit-scrollbar { display: none }
+.icon-tab {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  border-radius: var(--r2);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--bdr);
+  color: var(--txt3);
+  background: var(--bg);
+  transition: var(--fast);
+  font-family: var(--sans);
+  white-space: nowrap;
+  margin-bottom: 6px;
+}
+.icon-tab.active { background: var(--grn); color: #fff; border-color: var(--grn) }
+#iconGrid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 20px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  align-content: start;
+}
+.icon-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background var(--fast), border-color var(--fast), transform .1s;
+  background: transparent;
+  border: 1.5px solid transparent;
+  -webkit-user-select: none;
+}
+.icon-cell:hover { background: var(--surf2) }
+.icon-cell:active { transform: scale(.80) }
+.icon-cell.selected { background: var(--grn-bg); border-color: var(--grn) }
+#iconPickerPreviewBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: var(--r2);
+  border: 2px solid var(--bdr);
+  background: var(--bg);
+  font-size: 24px;
+  cursor: pointer;
+  transition: var(--fast);
+  flex-shrink: 0;
+}
+#iconPickerPreviewBtn:active { background: var(--surf3) }
+
+/* ── Firebase sync status ── */
+#syncStatus {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--grn);
+  background: var(--grn-bg);
+  border: 1px solid var(--grn-lt);
+  border-radius: 20px;
+  padding: 3px 10px;
+  opacity: 0;
+  transition: opacity .3s ease;
+  z-index: 300;
+  pointer-events: none;
+}
+</style>
+
+</head>
+<body>
+<div id="app">
+
+  <!-- Topbar -->
+  <div id="topbar">
+    <div id="appLogo">Famiglia</div>
+    <button id="curUserBtn" onclick="switchUser()">
+      <div id="cDot"></div>
+      <span id="curEm">👨</span>
+      <span id="curNm">พ่อ</span>
+    </button>
+    <button class="tbtn" onclick="goAdd()" title="เพิ่มรายการ">＋</button>
+  </div>
+  <!-- Smart Budget Alert Banner -->
+  <div id="smartAlert"></div>
+
+  <!-- Content -->
+  <div id="content">
+
+    <!-- ── DASHBOARD ── -->
+    <div id="page-dashboard" class="page">
+      <div id="monthStrip"></div>
+      <div id="alertBanner"></div>
+      <div id="fnav"></div>
+      <div id="kpiGrid">
+        <div class="kcard"><div class="kcard-lbl">รายจ่าย</div><div class="kcard-val red" id="kExp">฿0</div><div class="kcard-sub" id="kExpSub">0 รายการ</div></div>
+        <div class="kcard"><div class="kcard-lbl">รายรับ</div><div class="kcard-val grn" id="kInc">฿0</div><div class="kcard-sub" id="kIncSub">สุทธิ ฿0</div></div>
+        <div class="kcard"><div class="kcard-lbl">วันนี้</div><div class="kcard-val" id="kToday">฿0</div><div class="kcard-sub" id="kTodaySub">0 รายการ</div></div>
+        <div class="kcard"><div class="kcard-lbl">งบเหลือ</div><div class="kcard-val" id="kLeft">฿0</div><div class="kcard-sub" id="kLeftSub">0%</div></div>
+      </div>
+      <div id="budgetSection">
+        <div class="bsec">
+          <div class="sec-head" style="margin-bottom:8px">
+            <span class="sec-title">งบประมาณ</span>
+            <button class="btn btn-gh btn-xs" onclick="showPage('settings',document.querySelectorAll('.ntab')[4])">แก้ไข</button>
+          </div>
+          <div id="budBars"></div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-box">
+          <div class="ctabs">
+            <button class="ctab active" onclick="switchChart('trend',this)">แนวโน้ม</button>
+            <button class="ctab" onclick="switchChart('cat',this)">หมวด</button>
+            <button class="ctab" onclick="switchChart('member',this)">สมาชิก</button>
+            <button class="ctab" onclick="switchChart('monthly',this)">รายเดือน</button>
+          </div>
+          <div style="height:155px;position:relative">
+            <canvas id="cLine"></canvas>
+            <canvas id="cPie" style="display:none"></canvas>
+            <canvas id="cBar" style="display:none"></canvas>
+            <canvas id="cMonth" style="display:none"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ADD (FORM) ── -->
+    <div id="page-add" class="page active">
+      <div id="calcWrap" style="padding:10px 14px 16px">
+
+        <!-- Type toggle -->
+        <div class="calc-type-row" style="margin-bottom:14px">
+          <button class="calc-type-btn exp on" id="tpExp" onclick="setET('expense')">📤 รายจ่าย</button>
+          <button class="calc-type-btn inc" id="tpInc" onclick="setET('income')">📥 รายรับ</button>
+        </div>
+
+        <!-- Amount — native number input, big -->
+        <div style="margin-bottom:12px">
+          <label class="form-lbl">จำนวนเงิน (฿)</label>
+          <input class="fi add-amt-input" id="calcAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="0.00" autocomplete="off"/>
+        </div>
+
+        <!-- Description -->
+        <div style="margin-bottom:12px">
+          <label class="form-lbl">รายการ</label>
+          <div class="suggest-wrap" style="position:relative">
+            <input class="fi" id="calcDesc" placeholder="เช่น อาหารเที่ยง, ค่าน้ำมัน..." autocomplete="off"
+              oninput="onDescInput(this.value)" onkeydown="onDescKey(event)"
+              onfocus="onDescInput(this.value)" onblur="setTimeout(()=>closeSuggest(),200)"
+              autocapitalize="off" spellcheck="false"/>
+            <div class="suggest-list" id="suggestList"></div>
+          </div>
+        </div>
+
+        <!-- Category -->
+        <div style="margin-bottom:10px">
+          <label class="form-lbl">หมวดหมู่</label>
+          <div id="catQuickGrid" class="qcat-grid"></div>
+          <div class="cat-scroll" id="catGrid" style="display:none"></div>
+          <div class="qcat-more" id="catMoreBtn" onclick="toggleCatExpand()">▼ ดูหมวดทั้งหมด</div>
+        </div>
+
+        <!-- Member + Date -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <label class="form-lbl">สมาชิก</label>
+            <select class="fi" id="calcMember"></select>
+          </div>
+          <div>
+            <label class="form-lbl">วันที่</label>
+            <input class="fi" id="calcDate" type="date"/>
+          </div>
+        </div>
+
+        <!-- Note -->
+        <div style="margin-bottom:16px">
+          <label class="form-lbl">หมายเหตุ (ถ้ามี)</label>
+          <input class="fi" id="calcNote" placeholder="หมายเหตุ..." autocomplete="off"/>
+        </div>
+
+        <!-- Save button -->
+        <button class="add-save-btn exp-mode" id="nkSav" onclick="calcSaveWithUndo()">✅ บันทึก</button>
+      </div>
+
+      <!-- Recent -->
+      <div id="recentWrap" style="padding:0 14px 16px">
+        <div class="sec-head" style="padding:8px 0 8px">
+          <span class="sec-title">รายการล่าสุด</span>
+          <button class="btn btn-gh btn-xs" onclick="showPage('transactions',document.querySelectorAll('.ntab')[2])">ดูทั้งหมด</button>
+        </div>
+        <div id="recentList"></div>
+      </div>
+    </div>
+
+    <!-- ── TRANSACTIONS ── -->
+    <div id="page-transactions" class="page">
+      <!-- Search -->
+      <div class="search-wrap">
+        <input id="txSearch" placeholder="🔍 ค้นหารายการ..." oninput="refreshTx()" autocomplete="off"/>
+        <button class="btn btn-gh btn-xs" onclick="clearSearch()">✕</button>
+      </div>
+      <!-- Calendar date picker (collapsible) -->
+      <div class="cal-wrap" id="calWrap">
+        <div class="cal-box" id="calBox" style="display:none">
+          <div class="cal-header">
+            <button class="cal-nav" onclick="calPrev()">‹</button>
+            <div class="cal-month-title" id="calTitle"></div>
+            <button class="cal-nav" onclick="calNext()">›</button>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+        <div class="cal-toggle" id="calToggle" onclick="toggleCal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+          <span id="calToggleText">📅 เลือกดูตามวันที่</span>
+        </div>
+      </div>
+      <!-- Month strip -->
+      <div class="tx-month-strip" id="txMonthStrip"></div>
+      <!-- Filters -->
+      <div class="tx-filter">
+        <select class="fi" id="fType" onchange="refreshTx()" style="font-size:13px;padding:8px 10px;flex-shrink:0">
+          <option value="">ทุกประเภท</option><option value="expense">รายจ่าย</option><option value="income">รายรับ</option>
+        </select>
+        <select class="fi" id="fMember" onchange="refreshTx()" style="font-size:13px;padding:8px 10px;flex-shrink:0"></select>
+        <select class="fi" id="fCat" onchange="refreshTx()" style="font-size:13px;padding:8px 10px;flex-shrink:0"></select>
+      </div>
+      <!-- Sort bar -->
+      <div class="sort-bar">
+        <button class="sort-btn active" id="sb-date" onclick="setSort('date',this)">📅 ล่าสุด</button>
+        <button class="sort-btn" id="sb-amt-d" onclick="setSort('amt-d',this)">💰 มาก→น้อย</button>
+        <button class="sort-btn" id="sb-amt-a" onclick="setSort('amt-a',this)">💰 น้อย→มาก</button>
+        <button class="sort-btn" id="sb-desc" onclick="setSort('desc',this)">🔤 ชื่อ A-Z</button>
+        <button class="sort-btn" id="sb-cat" onclick="setSort('cat',this)">🏷️ หมวด</button>
+        <button class="sort-btn" id="sb-who" onclick="setSort('who',this)">👤 สมาชิก</button>
+      </div>
+      <div id="txTotal"></div>
+      <div id="txList"></div>
+    </div>
+
+    <!-- ── RECURRING ── -->
+    <div id="page-recurring" class="page">
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-title">รายการประจำ</span>
+          <button class="btn btn-pri btn-xs" onclick="openRecModal()">+ เพิ่ม</button>
+        </div>
+      </div>
+      <div id="recList" class="rec-timeline"></div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div id="page-settings" class="page" style="padding-top:14px">
+
+      <!-- Budget -->
+      <div class="sett-card">
+        <div class="sett-hdr">งบประมาณ</div>
+        <div style="padding:12px 14px">
+          <div class="form-row"><label class="form-lbl">งบครอบครัว / เดือน</label><input class="fi" type="number" id="budFamily" value="50000"/></div>
+          <div id="memBudInputs"></div>
+          <button class="btn btn-pri btn-sm" style="width:100%;margin-top:6px" onclick="saveBudgets()">💾 บันทึกงบ</button>
+        </div>
+      </div>
+      <!-- Members -->
+      <div class="sett-card">
+        <div class="sett-hdr">สมาชิก</div>
+        <div id="memManList"></div>
+        <div style="padding:10px 14px;display:flex;gap:7px;border-top:1.5px solid var(--bdr)">
+          <input class="fi" id="newMemEm" placeholder="😀" style="width:54px;text-align:center"/>
+          <input class="fi f1" id="newMemNm" placeholder="ชื่อสมาชิก"/>
+          <button class="btn btn-pri btn-sm" onclick="addMember()">เพิ่ม</button>
+        </div>
+      </div>
+      <!-- Categories -->
+      <div class="sett-card">
+        <div class="sett-hdr">หมวดหมู่</div>
+        <div style="padding:10px 14px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center">
+            <button id="iconPickerPreviewBtn" onclick="openIconPicker()" title="เลือก Icon">📦</button>
+            <input type="hidden" id="nCatEm" value="📦"/>
+            <input class="fi f1" id="nCatNm" placeholder="ชื่อหมวด" style="min-width:80px"/>
+            <input class="fi" id="nCatGrp" placeholder="กลุ่ม" style="width:88px"/>
+            <select class="fi" id="nCatType" style="width:78px;font-size:13px">
+              <option value="expense">จ่าย</option><option value="income">รับ</option><option value="both">ทั้งคู่</option>
+            </select>
+            <button class="btn btn-pri btn-xs" onclick="addCat()">+ เพิ่ม</button>
+          </div>
+        </div>
+        <div id="catManager" style="padding:0 14px 12px"></div>
+      </div>
+      <!-- Google Drive Backup -->
+      <div class="sett-card">
+        <div class="sett-hdr" style="display:flex;align-items:center;gap:8px">
+          <span>☁️ Google Drive Backup</span>
+          <span id="gdStatus" style="font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:0">⚪ ยังไม่ได้เชื่อมต่อ</span>
+        </div>
+        <div style="padding:10px 14px 4px">
+          <!-- Sign In / Sign Out -->
+          <div style="display:flex;gap:7px;margin-bottom:8px;flex-wrap:wrap">
+            <button id="gdSignInBtn" class="btn btn-pri btn-sm f1" onclick="gdSignIn()" style="display:flex;align-items:center;justify-content:center;gap:6px">
+              <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Sign in with Google
+            </button>
+            <button id="gdSignOutBtn" class="btn btn-gh btn-sm" onclick="gdSignOut()" style="display:none">👋 ออก</button>
+            <button class="btn btn-gh btn-sm" onclick="openGDriveSettings()" title="ตั้งค่า Client ID">⚙️</button>
+          </div>
+          <!-- Backup / Restore buttons -->
+          <div style="display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap">
+            <button id="gdBackupBtn" class="btn btn-suc btn-sm f1" onclick="gdBackup()" disabled>☁️ Backup ขึ้น Drive</button>
+            <button id="gdRestoreBtn" class="btn btn-gh btn-sm f1" onclick="gdRestore()" disabled>📥 Restore จาก Drive</button>
+          </div>
+          <!-- History -->
+          <div id="gdHistory" style="margin-bottom:4px"></div>
+          <!-- Settings panel (hidden by default) -->
+          <div id="gdSettingsPanel" style="display:none;margin-top:10px;padding:12px;background:var(--bg2);border-radius:var(--r2);border:1.5px solid var(--bdr)">
+            <div style="font-size:11px;font-weight:800;color:var(--txt3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px">Google OAuth Client ID</div>
+            <div style="font-size:11px;color:var(--txt2);margin-bottom:8px;line-height:1.5">
+              1. ไปที่ <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--blu)">Google Cloud Console</a><br>
+              2. สร้าง OAuth 2.0 Client ID (Web Application)<br>
+              3. เพิ่ม Authorized JS Origin: URL ของแอปนี้<br>
+              4. วาง Client ID ด้านล่าง
+            </div>
+            <div style="display:flex;gap:6px">
+              <input id="gdClientIdInput" class="fi f1" placeholder="xxxx.apps.googleusercontent.com" style="font-size:12px"/>
+              <button class="btn btn-pri btn-sm" onclick="saveGDriveClientId()">บันทึก</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Export / Local Backup -->
+      <div class="sett-card">
+        <div class="sett-hdr">ข้อมูล (Local)</div>
+        <div style="padding:10px 14px;display:flex;gap:7px;flex-wrap:wrap">
+          <button class="btn btn-gh btn-sm f1" onclick="doExcel()">📊 Excel</button>
+          <button class="btn btn-gh btn-sm f1" onclick="doBackup()">💾 Backup</button>
+          <button class="btn btn-gh btn-sm" onclick="doRestoreClick()">📥 Restore</button>
+          <button class="btn btn-dng btn-sm f1" onclick="clearAll()">🗑️ ล้าง</button>
+        </div>
+        <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="doRestore(this)"/>
+      </div>
+      <div style="padding:16px;text-align:center;font-size:13px;color:var(--txt3)">Famiglia ❤️</div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- Navbar -->
+  <nav id="navbar">
+    <button class="ntab" onclick="showPage('dashboard',this)"><span class="ntab-icon">📊</span>ภาพรวม</button>
+    <button class="ntab active" onclick="showPage('add',this)"><span class="ntab-icon">✏️</span>บันทึก</button>
+    <button class="ntab" onclick="showPage('transactions',this)"><span class="ntab-icon">📋</span>รายการ</button>
+    <button class="ntab" onclick="showPage('recurring',this)"><span class="ntab-icon">🔁</span>ประจำ</button>
+    <button class="ntab" onclick="showPage('settings',this)"><span class="ntab-icon">⚙️</span>ตั้งค่า</button>
+  </nav>
+  <div id="toasts"></div>
+</div>
+
+<!-- ── Custom Confirm Dialog ── -->
+<div id="confirmOverlay" onclick="if(event.target===this)safeConfirmResolve(false)">
+  <div id="confirmBox">
+    <div id="confirmIcon">🗑️</div>
+    <div id="confirmMsg">ยืนยันการลบ?</div>
+    <div id="confirmSub"></div>
+    <div class="confirm-btns">
+      <button id="confirmCancel" onclick="safeConfirmResolve(false)">✕ ยกเลิก</button>
+      <button id="confirmOk" onclick="safeConfirmResolve(true)">🗑️ ลบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit Modal ── -->
+<div id="modal" class="modal-wrap" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div class="modal-title" id="modalTitle">✏️ แก้ไขรายการ</div>
+    <div class="modal-body">
+      <input type="hidden" id="editId"/>
+      <div class="qa-type">
+        <button class="qa-tbtn exp on" id="mtpExp" onclick="setMT('expense')">📤 รายจ่าย</button>
+        <button class="qa-tbtn inc" id="mtpInc" onclick="setMT('income')">📥 รายรับ</button>
+      </div>
+      <div class="form-row"><label class="form-lbl">รายการ</label><input class="fi" id="inDesc" placeholder="อาหาร, ค่าไฟ..."/></div>
+      <div class="form-2col" style="margin-bottom:13px">
+        <div><label class="form-lbl">จำนวน (บาท)</label><input class="fi" id="inAmt" type="number" placeholder="0" inputmode="decimal"/></div>
+        <div><label class="form-lbl">วันที่</label><input class="fi" id="inDate" type="date"/></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">หมวดหมู่</label><div class="cat-scroll" id="modalCatGrid"></div></div>
+      <div class="form-2col">
+        <div><label class="form-lbl">สมาชิก</label><select class="fi" id="inMember"></select></div>
+        <div><label class="form-lbl">หมายเหตุ</label><input class="fi" id="inNote" placeholder="..."/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gh f1" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-pri f1" onclick="saveEntry()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Recurring Modal ── -->
+<div id="recModal" class="modal-wrap" onclick="if(event.target===this)closeRecModal()">
+  <div class="modal">
+    <div class="modal-drag"></div>
+    <div class="modal-title" id="recModalTitle">🔔 รายการประจำ</div>
+    <div class="modal-body">
+      <input type="hidden" id="recEditId"/>
+      <div class="qa-type">
+        <button class="qa-tbtn exp on" id="rtpExp" onclick="setRT('expense')">📤 รายจ่าย</button>
+        <button class="qa-tbtn inc" id="rtpInc" onclick="setRT('income')">📥 รายรับ</button>
+      </div>
+      <div class="form-row"><label class="form-lbl">ชื่อรายการ</label><input class="fi" id="recDesc" placeholder="ผ่อนบ้าน, ประกันชีวิต..."/></div>
+      <div class="form-2col" style="margin-bottom:13px">
+        <div><label class="form-lbl">จำนวน</label><input class="fi" id="recAmt" type="number" placeholder="0" inputmode="decimal"/></div>
+        <div><label class="form-lbl">สมาชิก</label><select class="fi" id="recMember"></select></div>
+      </div>
+      <div class="form-row"><label class="form-lbl">หมวดหมู่</label><div class="cat-scroll" id="recCatGrid"></div></div>
+      <div class="form-2col" style="margin-bottom:13px">
+        <div><label class="form-lbl">ความถี่</label>
+          <select class="fi" id="recFreq" onchange="updRecPrev()">
+            <option value="daily">ทุกวัน</option><option value="weekly">ทุกสัปดาห์</option>
+            <option value="biweekly">ทุก 2 สัปดาห์</option><option value="monthly" selected>ทุกเดือน</option>
+            <option value="quarterly">ทุก 3 เดือน</option><option value="biannual">ทุก 6 เดือน</option>
+            <option value="yearly">ทุกปี</option><option value="custom">กำหนดเอง</option>
+          </select>
+        </div>
+        <div id="custDWrap" style="display:none"><label class="form-lbl">จำนวนวัน</label><input class="fi" id="recCustDays" type="number" value="90"/></div>
+        <div><label class="form-lbl">ครบกำหนด</label><input class="fi" id="recDue" type="date" onchange="updRecPrev()"/></div>
+      </div>
+      <div class="form-2col" style="margin-bottom:13px">
+        <div><label class="form-lbl">แจ้งล่วงหน้า (วัน)</label><input class="fi" id="recAlert" type="number" value="3" min="0"/></div>
+        <div><label class="form-lbl">หมายเหตุ</label><input class="fi" id="recNote" placeholder="..."/></div>
+      </div>
+      <div id="recPrev" style="font-size:13px;color:var(--txt3);padding:6px 0"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-gh f1" onclick="closeRecModal()">ยกเลิก</button>
+      <button class="btn btn-pri f1" onclick="saveRec()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SK='famiglia_v3c';
+const MC=['#1A6B3C','#1A56A0','#C0357A','#C47A00','#6B35B5','#0884A8','#C0292A','#087050'];
+function mCol(i){return MC[i%MC.length]}
+function getMem(id){return D.members.find(m=>m.id===id)}
+function mIdx(id){return D.members.findIndex(m=>m.id===id)}
+const FREQ_LBL={daily:'ทุกวัน',weekly:'ทุกสัปดาห์',biweekly:'ทุก 2 สัปดาห์',monthly:'ทุกเดือน',quarterly:'ทุก 3 เดือน',biannual:'ทุก 6 เดือน',yearly:'ทุกปี',custom:'กำหนดเอง'};
+function freqLbl(r){return FREQ_LBL[r.freq]+(r.freq==='custom'?` (${r.customDays} วัน)`:'')}
+function daysUntil(ds){const d=new Date(ds),n=new Date();d.setHours(0,0,0,0);n.setHours(0,0,0,0);return Math.round((d-n)/864e5)}
+function defCats(){return{expense:[
+  {id:'e1',emoji:'🍔',name:'อาหาร',group:'ชีวิตประจำวัน'},{id:'e2',emoji:'🛍️',name:'ช้อปปิ้ง',group:'ชีวิตประจำวัน'},
+  {id:'e3',emoji:'☕',name:'เครื่องดื่ม',group:'ชีวิตประจำวัน'},{id:'e4',emoji:'🧴',name:'ของใช้',group:'ชีวิตประจำวัน'},
+  {id:'e5',emoji:'💡',name:'ค่าไฟ',group:'สาธารณูปโภค'},{id:'e6',emoji:'💧',name:'ค่าน้ำ',group:'สาธารณูปโภค'},
+  {id:'e7',emoji:'📱',name:'ค่าโทรศัพท์',group:'สาธารณูปโภค'},{id:'e8',emoji:'🔥',name:'ค่าแก๊ส',group:'สาธารณูปโภค'},
+  {id:'e9',emoji:'🏠',name:'ค่าเช่า/ผ่อนบ้าน',group:'ที่พัก'},{id:'e10',emoji:'🔧',name:'ซ่อมบ้าน',group:'ที่พัก'},
+  {id:'e11',emoji:'🏘️',name:'ค่าส่วนกลาง',group:'ที่พัก'},{id:'e12',emoji:'🚗',name:'ผ่อนรถ',group:'ยานพาหนะ'},
+  {id:'e13',emoji:'⛽',name:'ค่าน้ำมัน',group:'ยานพาหนะ'},{id:'e14',emoji:'🔩',name:'ซ่อมรถ',group:'ยานพาหนะ'},
+  {id:'e15',emoji:'🚌',name:'ค่าเดินทาง',group:'ยานพาหนะ'},{id:'e16',emoji:'📚',name:'ค่าเล่าเรียน',group:'การศึกษา'},
+  {id:'e17',emoji:'🏥',name:'ค่าแพทย์',group:'สุขภาพ'},{id:'e18',emoji:'💊',name:'ยา',group:'สุขภาพ'},
+  {id:'e19',emoji:'🏋️',name:'ฟิตเนส',group:'สุขภาพ'},{id:'e20',emoji:'🛡️',name:'ประกันชีวิต',group:'ประกัน'},
+  {id:'e21',emoji:'🚙',name:'ประกันรถ',group:'ประกัน'},{id:'e22',emoji:'🩺',name:'ประกันสุขภาพ',group:'ประกัน'},
+  {id:'e23',emoji:'✈️',name:'ท่องเที่ยว',group:'บันเทิง'},{id:'e24',emoji:'🎬',name:'บันเทิง',group:'บันเทิง'},
+  {id:'e25',emoji:'🍽️',name:'ทานข้าวนอก',group:'บันเทิง'},{id:'e26',emoji:'🎁',name:'ของขวัญ',group:'บันเทิง'},
+  {id:'e27',emoji:'💳',name:'ดอกเบี้ย',group:'การเงิน'},{id:'e28',emoji:'🏦',name:'เงินออม',group:'การเงิน'},
+  {id:'e29',emoji:'📦',name:'อื่นๆ',group:'ทั่วไป'}
+],income:[
+  {id:'i1',emoji:'💼',name:'เงินเดือน',group:'รายได้ประจำ'},{id:'i2',emoji:'🎯',name:'โบนัส',group:'รายได้ประจำ'},
+  {id:'i3',emoji:'📊',name:'OT',group:'รายได้ประจำ'},{id:'i4',emoji:'🏠',name:'ค่าเช่า',group:'ทรัพย์สิน'},
+  {id:'i5',emoji:'📈',name:'เงินปันผล',group:'การลงทุน'},{id:'i6',emoji:'💹',name:'กำไรหุ้น',group:'การลงทุน'},
+  {id:'i7',emoji:'🏦',name:'ดอกเบี้ย',group:'การลงทุน'},{id:'i8',emoji:'💰',name:'Freelance',group:'รายได้เสริม'},
+  {id:'i9',emoji:'🏷️',name:'ขายของ',group:'รายได้เสริม'},{id:'i10',emoji:'🔄',name:'เงินคืน',group:'รายได้เสริม'},
+  {id:'i11',emoji:'💸',name:'อื่นๆ',group:'ทั่วไป'}
+]}}
+function futureDate(d){const dt=new Date();dt.setDate(dt.getDate()+d);const o=dt.getTimezoneOffset()*6e4;return new Date(dt-o).toISOString().slice(0,10)}
+function defData(){const n=today(),ym=n.slice(0,7);return{v:'3c',settings:{lang:'th'},members:[{id:'m1',name:'พ่อ',emoji:'👨'},{id:'m2',name:'แม่',emoji:'👩'},{id:'m3',name:'ลูก1',emoji:'🧒'},{id:'m4',name:'ลูก2',emoji:'👶'}],budgets:{family:50000,m1:15000,m2:15000,m3:10000,m4:10000},categories:defCats(),expenses:[{id:uid(),type:'expense',desc:'อาหารเช้า',amt:320,cat:'🍔 อาหาร',who:'m2',date:n,ts:Date.now()},{id:uid(),type:'expense',desc:'ค่าน้ำมัน',amt:750,cat:'⛽ ค่าน้ำมัน',who:'m1',date:n,ts:Date.now()-1e5},{id:uid(),type:'income',desc:'เงินเดือน',amt:45000,cat:'💼 เงินเดือน',who:'m1',date:ym+'-01',ts:Date.now()-5e6},{id:uid(),type:'income',desc:'เงินเดือน',amt:38000,cat:'💼 เงินเดือน',who:'m2',date:ym+'-01',ts:Date.now()-4.9e6},{id:uid(),type:'expense',desc:'ผ่อนรถ',amt:7500,cat:'🚗 ผ่อนรถ',who:'m1',date:ym+'-05',ts:Date.now()-4e6},{id:uid(),type:'expense',desc:'ค่าไฟ',amt:1200,cat:'💡 ค่าไฟ',who:'m1',date:n,ts:Date.now()-8e5}],recurring:[{id:'r1',type:'expense',desc:'ผ่อนบ้าน',amt:12500,cat:'🏠 ค่าเช่า/ผ่อนบ้าน',who:'m1',freq:'monthly',dueDate:ym+'-05',alertDays:5,note:'ธ.กสิกร'},{id:'r2',type:'expense',desc:'ผ่อนรถ',amt:7500,cat:'🚗 ผ่อนรถ',who:'m1',freq:'monthly',dueDate:ym+'-05',alertDays:3,note:''},{id:'r3',type:'expense',desc:'ประกันชีวิต',amt:3200,cat:'🛡️ ประกันชีวิต',who:'m1',freq:'quarterly',dueDate:futureDate(25),alertDays:7,note:''},{id:'r4',type:'expense',desc:'ค่าส่วนกลาง',amt:2000,cat:'🏘️ ค่าส่วนกลาง',who:'m1',freq:'monthly',dueDate:ym+'-10',alertDays:3,note:''},{id:'r5',type:'income',desc:'เงินเดือน พ่อ',amt:45000,cat:'💼 เงินเดือน',who:'m1',freq:'monthly',dueDate:ym+'-28',alertDays:1,note:''},{id:'r6',type:'income',desc:'ค่าเช่าห้อง',amt:6000,cat:'🏠 ค่าเช่า',who:'m2',freq:'monthly',dueDate:ym+'-01',alertDays:2,note:'ห้อง 201'},{id:'r7',type:'expense',desc:'ประกันรถ',amt:8500,cat:'🚙 ประกันรถ',who:'m1',freq:'yearly',dueDate:futureDate(120),alertDays:14,note:''}]}}
+function load(){try{const r=localStorage.getItem(SK);if(!r)return defData();const d=JSON.parse(r);if(!d.members||!d.categories)return defData();if(!d.expenses)d.expenses=[];if(!d.settings)d.settings={lang:'th'};if(!d.recurring)d.recurring=[];if(!d.categories.expense||!d.categories.income)d.categories=defCats();if(!d.budgets)d.budgets={family:50000};if(!d.budgets.family)d.budgets.family=50000;d.members.forEach(m=>{if(d.budgets[m.id]===undefined)d.budgets[m.id]=0});return d}catch{return defData()}}
+var D=load();
+// ── persist: บันทึก localStorage ทันที + push Firebase async ──
+var _localSaveTs = 0;
+function persist(){
+  localStorage.setItem(SK, JSON.stringify(D));
+  _localSaveTs = Date.now();
+  persistToFirebase(); // async — ไม่ block UI
+}
+function uid(){return 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
+function today(){const d=new Date(),o=d.getTimezoneOffset()*6e4;return new Date(d-o).toISOString().slice(0,10)}
+function mPfx(){return viewMonth||today().slice(0,7)}
+function fmt(n){if(n===undefined||n===null||isNaN(n))return '฿0';return '฿'+Number(n).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0})}
+function esc(s){if(!s)return'';s=String(s);return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function getIco(cat){try{const m=cat?.match(/\p{Emoji}/u);return m?m[0]:''}catch{return''}}
+const _thMonths=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function fmtDate(iso){if(!iso)return'';const p=iso.split('-');if(p.length<3)return iso;const d=parseInt(p[2]),m=parseInt(p[1])-1,y=(parseInt(p[0])+543)%100;return`${d} ${_thMonths[m]} ${String(y).padStart(2,'0')}`}
+
+var curUser=D.members[0]?.id||'m1';
+var entType='expense';
+var recType='expense';
+var curPage='add';
+var viewMonth='';
+var calcVal='';
+var calcExprStack=[];
+var calcPending='';
+var calcJustEvaled=false;
+
+// ── Calculator ──
+function nkBase(v){
+  if(v==='DEL'){calcVal=calcVal.slice(0,-1)}
+  else if(v==='CLR'){calcVal=''}
+  else if(v==='.'){if(!calcVal.includes('.'))calcVal+=(calcVal?'.':'0.')}
+  else{if(calcVal==='0')calcVal=v;else calcVal+=v}
+  updCalcAmt();
+}
+function nk(v){
+  if(v==='CLR'){
+    calcExprStack=[];calcPending='';calcJustEvaled=false;
+    const el=document.getElementById('calcExpr');if(el)el.textContent='';
+    calcVal='';updCalcAmt();return;
+  }
+  if(calcJustEvaled && v!=='DEL' && !['÷','×','−','+','%'].includes(v)){
+    // after = pressed, new digit starts fresh
+    calcVal='';calcJustEvaled=false;
+  }
+  nkBase(v);
+}
+function addZeros(n){
+  if(!calcVal||calcVal==='0'||calcVal.includes('.'))return;
+  calcVal+='0'.repeat(n);
+  updCalcAmt();
+}
+function updCalcAmt(){
+  // calcAmt is now a native <input> — no-op, value managed by input event
+}
+function calcSave(){
+  const amt=parseFloat(document.getElementById('calcAmt').value);
+  const desc=(document.getElementById('calcDesc').value||'').trim();
+  if(!amt||amt<=0){toast('⚠️ กรอกจำนวนเงินก่อน','warn');document.getElementById('calcAmt').focus();return}
+  if(!desc){toast('⚠️ กรอกชื่อรายการด้วย','warn');document.getElementById('calcDesc').focus();return}
+  const who=document.getElementById('calcMember').value||curUser;
+  const cat=getSelCat('catGrid');
+  const date=document.getElementById('calcDate').value||today();
+  const note=(document.getElementById('calcNote').value||'').trim();
+  if(!D.expenses) D.expenses = [];
+  D.expenses.unshift({id:uid(),type:entType,desc,amt,who,date,cat,note,ts:Date.now()});
+  persist();
+  document.getElementById('calcAmt').value='';
+  document.getElementById('calcDesc').value='';
+  document.getElementById('calcNote').value='';
+  document.getElementById('calcDate').value=today();
+  refreshUI();
+  renderRecentList();
+  const isInc=entType==='income';
+  toast(`${isInc?'📥 +':'📤 -'}${fmt(amt)}  ${desc}`,'success');
+  setTimeout(()=>document.getElementById('calcAmt').focus(),60);
+}
+function setET(type){
+  entType=type;
+  document.getElementById('tpExp').className='calc-type-btn exp'+(type==='expense'?' on':'');
+  document.getElementById('tpInc').className='calc-type-btn inc'+(type==='income'?' on':'');
+  const sav=document.getElementById('nkSav');
+  if(sav){sav.className='add-save-btn '+(type==='income'?'inc-mode':'exp-mode');}
+  buildCatGrid('catGrid',type);
+  catExpanded=false;
+  const scroll=document.getElementById('catGrid');if(scroll)scroll.style.display='none';
+  const btn=document.getElementById('catMoreBtn');if(btn)btn.textContent='▼ ดูหมวดทั้งหมด';
+}
+
+// ── Pages ──
+function showPage(id,el){
+  curPage=id;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pg=document.getElementById('page-'+id);if(pg)pg.classList.add('active');
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  if(el)el.classList.add('active');
+  const content=document.getElementById('content');
+  content.classList.remove('noscroll');
+  content.scrollTo(0,0);
+  if(id==='transactions'){buildTxFilters();refreshTx()}
+  else if(id==='recurring')renderRecurring();
+  else if(id==='settings'){renderCatManager();buildMemManList();loadBudgetInputs();updateGDriveUI()}
+  else if(id==='add'){renderRecentList()}
+}
+function goAdd(){
+  const tabs=document.querySelectorAll('.ntab');
+  showPage('add', tabs[1]||null);
+}
+
+// ── Month strip ──
+function buildMonthStrip(){
+  const strip=document.getElementById('monthStrip');if(!strip)return;
+  const months=new Set(D.expenses.map(e=>e.date.slice(0,7)));
+  const cur=today().slice(0,7);months.add(cur);
+  const sorted=[...months].sort().reverse().slice(0,6).reverse();
+  const active=viewMonth||cur;
+  strip.innerHTML=sorted.map(m=>{
+    const [y,mo]=m.split('-');
+    return`<div class="mchip${m===active?' active':''}" onclick="setVM('${m}',this)">${mo}/${y.slice(2)}</div>`;
+  }).join('');
+}
+function setVM(m,el){viewMonth=m;document.querySelectorAll('.mchip').forEach(c=>c.classList.remove('active'));if(el)el.classList.add('active');refreshUI()}
+
+// ── Family nav ──
+function buildFNav(){
+  const nav=document.getElementById('fnav');if(!nav)return;
+  nav.innerHTML=`<div class="fchip active" onclick="setView('all',this)">🏠 ทั้งหมด</div>`
+    +D.members.map((m,i)=>`<div class="fchip" style="border-color:${mCol(i)};color:${mCol(i)}" data-color="${mCol(i)}" onclick="setView('${m.id}',this)">${m.emoji} ${m.name}</div>`).join('');
+}
+var curView2='all';
+function setView(v,el){
+  curView2=v;
+  document.querySelectorAll('.fchip').forEach(c=>{
+    c.classList.remove('active');
+    if(c.dataset.color) c.style.color=c.dataset.color;
+  });
+  if(el){
+    el.classList.add('active');
+    el.style.color='#fff';
+  }
+  refreshUI();
+}
+
+// ── Member selects ──
+function buildMemSelects(){
+  ['calcMember','inMember','recMember'].forEach(sid=>{
+    const el=document.getElementById(sid);if(!el)return;
+    el.innerHTML=D.members.map(m=>`<option value="${m.id}">${m.emoji} ${m.name}</option>`).join('');
+    el.value=curUser;
+  });
+  const fm=document.getElementById('fMember');
+  if(fm){const v=fm.value;fm.innerHTML='<option value="">ทุกคน</option>'+D.members.map(m=>`<option value="${m.id}">${m.emoji} ${m.name}</option>`).join('');fm.value=v}
+}
+function buildMemManList(){
+  document.getElementById('memManList').innerHTML=D.members.map((m,i)=>
+    `<div class="mem-item"><div class="mem-em" style="background:${mCol(i)}18;color:${mCol(i)}">${m.emoji}</div><div class="mem-name">${esc(m.name)}</div><button class="btn btn-dng btn-xs" onclick="delMem('${m.id}')">ลบ</button></div>`
+  ).join('');
+}
+function addMember(){
+  const name=(document.getElementById('newMemNm').value||'').trim();
+  const emoji=(document.getElementById('newMemEm').value||'👤').trim()||'👤';
+  if(!name){toast('⚠️ กรอกชื่อ','warn');return}
+  if(D.members.some(m=>m.name===name)){toast('⚠️ ชื่อซ้ำ','warn');return}
+  const id='m'+Date.now();D.members.push({id,name,emoji});D.budgets[id]=0;
+  document.getElementById('newMemNm').value='';document.getElementById('newMemEm').value='';
+  persist();buildFNav();buildMemBudInputs();buildMemSelects();buildMemManList();refreshUI();toast('👤 เพิ่มแล้ว','success');
+}
+async function delMem(id){
+  if(D.members.length<=1){toast('ต้องมีอย่างน้อย 1 คน','warn');return}
+  const m=getMem(id);
+  const ok=await customConfirm(`ลบ ${m?.emoji||''} ${m?.name||''}?`,'รายการที่เกี่ยวข้องจะถูกลบด้วย','👤','🗑️ ลบ','danger');
+  if(!ok)return;
+  D.members=D.members.filter(m=>m.id!==id);D.expenses=D.expenses.filter(e=>e.who!==id);D.recurring=D.recurring.filter(r=>r.who!==id);delete D.budgets[id];
+  if(curUser===id)curUser=D.members[0]?.id||'';
+  persist();buildFNav();buildMemBudInputs();buildMemSelects();buildMemManList();refreshUI();toast('🗑️ ลบแล้ว','warn');
+}
+function switchUser(){
+  const idx=mIdx(curUser);curUser=D.members[(idx+1)%D.members.length]?.id||curUser;
+  const m=getMem(curUser),i=mIdx(curUser);
+  document.getElementById('curEm').textContent=m?.emoji||'👤';
+  document.getElementById('curNm').textContent=m?.name||'';
+  document.getElementById('cDot').style.background=mCol(i);
+  buildMemSelects();toast(`${m?.emoji} ${m?.name}`,'info');
+}
+
+// ── Budget ──
+function buildMemBudInputs(){
+  document.getElementById('memBudInputs').innerHTML=D.members.map((m,i)=>
+    `<div class="form-row"><label class="form-lbl" style="color:${mCol(i)}">${m.emoji} ${m.name}</label><input type="number" id="bud_${m.id}" class="fi" value="${D.budgets[m.id]||0}"/></div>`
+  ).join('');
+}
+function loadBudgetInputs(){
+  document.getElementById('budFamily').value=D.budgets.family||50000;
+  D.members.forEach(m=>{const el=document.getElementById('bud_'+m.id);if(el)el.value=D.budgets[m.id]||0});
+}
+function saveBudgets(){
+  D.budgets.family=parseFloat(document.getElementById('budFamily').value)||50000;
+  D.members.forEach(m=>{const el=document.getElementById('bud_'+m.id);if(el)D.budgets[m.id]=parseFloat(el.value)||0});
+  persist();refreshUI();toast('💾 บันทึกงบแล้ว','success');
+}
+function setLang(l){D.settings.lang=l;persist();}
+
+// ── Categories ──
+var catExpanded = false;
+function toggleCatExpand(){
+  catExpanded = !catExpanded;
+  const qg = document.getElementById('catQuickGrid');
+  const scroll = document.getElementById('catGrid');
+  const btn = document.getElementById('catMoreBtn');
+  if(catExpanded){
+    if(scroll) scroll.style.display='flex';
+    if(btn) btn.textContent='▲ ซ่อน';
+  } else {
+    if(scroll) scroll.style.display='none';
+    if(btn) btn.textContent='▼ ดูหมวดทั้งหมด';
+  }
+}
+
+function buildCatGrid(gid,type){
+  const cats=type==='income'?(D.categories.income||[]):(D.categories.expense||[]);
+  const el=document.getElementById(gid);if(!el)return;
+  el.innerHTML=cats.map((c,i)=>`<div class="cchip${i===0?' '+(type==='income'?'on-inc':'on'):''}" onclick="selCat(this,'${gid}')" data-name="${esc(c.emoji+' '+c.name)}">${c.emoji} ${c.name}</div>`).join('');
+  // also build quick grid if this is the main calc grid
+  if(gid==='catGrid') buildQuickCatGrid(type, cats);
+}
+
+function buildQuickCatGrid(type, cats){
+  const qg = document.getElementById('catQuickGrid');
+  if(!qg) return;
+  // show top 8 categories as big emoji buttons
+  const top = cats.slice(0, 8);
+  qg.innerHTML = top.map((c,i) => {
+    const cls = i===0 ? (type==='income'?'on-inc':'on') : '';
+    return `<button class="qcat-btn ${cls}" onclick="selQuickCat(this,'${esc(c.emoji+' '+c.name)}')" data-name="${esc(c.emoji+' '+c.name)}"><span class="qcat-em">${c.emoji}</span><span class="qcat-nm">${c.name}</span></button>`;
+  }).join('');
+}
+
+function selQuickCat(el, name){
+  // deselect all quick cat buttons
+  document.querySelectorAll('#catQuickGrid .qcat-btn').forEach(b => b.classList.remove('on','on-inc'));
+  const isInc = entType==='income';
+  el.classList.add(isInc?'on-inc':'on');
+  // also sync the scroll cat grid
+  const grid = document.getElementById('catGrid');
+  if(grid) grid.querySelectorAll('.cchip').forEach(c => {
+    c.classList.remove('on','on-inc');
+    if(c.dataset.name === name) c.classList.add(isInc?'on-inc':'on');
+  });
+  // haptic feedback attempt
+  if(navigator.vibrate) navigator.vibrate(10);
+}
+
+function selCat(el,gid){
+  const grid=document.getElementById(gid||'catGrid');
+  if(grid)grid.querySelectorAll('.cchip').forEach(c=>c.classList.remove('on','on-inc'));
+  const isInc=(gid==='catGrid'&&entType==='income')||(gid==='modalCatGrid'&&document.getElementById('mtpInc')?.classList.contains('on'))||(gid==='recCatGrid'&&recType==='income');
+  el.classList.add(isInc?'on-inc':'on');
+  // sync quick grid if needed
+  if(gid==='catGrid'){
+    const name=el.dataset.name;
+    document.querySelectorAll('#catQuickGrid .qcat-btn').forEach(b=>{
+      b.classList.remove('on','on-inc');
+      if(b.dataset.name===name) b.classList.add(isInc?'on-inc':'on');
+    });
+  }
+}
+function getSelCat(gid){
+  // for main calc grid, check quick grid first
+  if(gid==='catGrid'){
+    const qsel=document.querySelector('#catQuickGrid .qcat-btn.on,#catQuickGrid .qcat-btn.on-inc');
+    if(qsel) return qsel.dataset.name||'📦 อื่นๆ';
+  }
+  const el=document.querySelector(`#${gid} .cchip.on,#${gid} .cchip.on-inc`);return el?el.dataset.name||el.textContent.trim():'📦 อื่นๆ'
+}
+function renderCatManager(){
+  const el=document.getElementById('catManager');if(!el)return;
+  const all=[...(D.categories.expense||[]).map(c=>({...c,t:'expense'})),...(D.categories.income||[]).map(c=>({...c,t:'income'}))];
+  const groups={};all.forEach(c=>{const key=c.group+'|'+c.t;if(!groups[key])groups[key]={group:c.group,t:c.t,cats:[]};groups[key].cats.push(c)});
+  el.innerHTML=Object.values(groups).map(g=>
+    `<div class="catgrp"><div class="catgh"><span>${g.t==='income'?'💚':'❤️'}</span><span style="flex:1">${g.group}</span><span style="font-size:12px;color:var(--txt3)">${g.cats.length}</span></div><div class="catgb">${g.cats.map(c=>`<div class="catci"><span>${c.emoji}</span><span>${c.name}</span><button class="catdel" onclick="delCat('${c.id}','${c.t}')">ลบ</button></div>`).join('')}</div></div>`
+  ).join('');
+}
+function addCat(){
+  const emoji=(document.getElementById('nCatEm').value||'📦').trim()||'📦';
+  const name=(document.getElementById('nCatNm').value||'').trim();
+  const group=(document.getElementById('nCatGrp').value||'ทั่วไป').trim()||'ทั่วไป';
+  const type=document.getElementById('nCatType').value;
+  if(!name){toast('⚠️ กรอกชื่อหมวด','warn');return}
+  const id='c'+Date.now(),obj={id,emoji,name,group};
+  if(type==='expense'||type==='both')D.categories.expense.push({...obj});
+  if(type==='income'||type==='both')D.categories.income.push({...obj});
+  document.getElementById('nCatNm').value='';
+  document.getElementById('nCatEm').value='📦';
+  document.getElementById('iconPickerPreviewBtn').textContent='📦';
+  _pickerSelectedIcon='📦';
+  persist();renderCatManager();buildCatGrid('catGrid',entType);toast('🏷️ เพิ่มหมวดแล้ว','success');
+}
+async function delCat(id,type){
+  const ok=await customConfirm('ลบหมวดนี้?','','🏷️','🗑️ ลบ','danger');
+  if(!ok)return;
+  D.categories[type]=D.categories[type].filter(c=>c.id!==id);persist();renderCatManager();toast('🗑️ ลบแล้ว','warn')
+}
+
+// ══════════════════════════════════════════
+// ICON PICKER
+// ══════════════════════════════════════════
+const ICON_CATS = {
+  '🍽️ อาหาร': ['🍔','🍕','🍜','🍣','🍱','🥗','🍚','🍛','🍝','🥩','🍗','🥪','🌮','🌯','🥙','🧆','🍤','🦐','🦞','🦑','🍣','🍱','🥘','🫕','🥣','🧁','🍰','🎂','🍩','🍪','🍫','🍬','🍭','🍦','🍨','🍧','🍡','🧇','🥞','🧈','🥚','🍳','🥓','🌭','🍟','🧀','🥯','🥨','🥐','🍞'],
+  '🥤 เครื่องดื่ม': ['☕','🍵','🧋','🍺','🥂','🍷','🍸','🍹','🧃','🥤','🧊','🍾','🫖','🧉'],
+  '🏠 ที่พัก': ['🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','🛖','⛺','🏕️','🛏️','🛋️','🚿','🛁','🪴','🪟','🚪','🔑','🔧','🪛','🧹','🧺','🧻','🪣'],
+  '🚗 ยานพาหนะ': ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🏍️','🛵','🚲','🛴','🛺','⛽','🔩','🛞','🗺️','✈️','🚀','🛳️','⛵','🚁','🚂','🚃','🚄','🚅','🚇'],
+  '💡 สาธารณูปโภค': ['💡','💧','🔥','📱','☎️','💻','🖥️','📺','📡','🔋','🔌','🌐','📶','💨','❄️','♻️','🌡️'],
+  '💼 งาน/การเงิน': ['💼','💰','💵','💴','💶','💷','💳','🏦','📊','📈','📉','🪙','💎','🏷️','🧾','📋','📌','✉️','📨','📩','📬','🗂️','📁','📂','✏️','📝','🖊️','📎','📏','📐'],
+  '🎓 การศึกษา': ['📚','📖','✏️','🖊️','📝','🎓','🏫','📐','📏','🔭','🔬','🧪','🧫','🧬','💡','📡','🗺️','🌍','🌎','🌏'],
+  '💊 สุขภาพ': ['💊','🏥','🩺','🩹','💉','🧬','🩻','🧠','🦷','👁️','🏋️','🧘','🏃','🚴','⚽','🏀','🎾','🏊','🧗','🤸'],
+  '🎬 บันเทิง': ['🎬','🎮','🎲','🎭','🎨','🎸','🎺','🎻','🎹','🥁','🎤','🎧','📻','📷','📸','📹','🎪','🎡','🎢','🎠','🏖️','🏝️','🌅','🌄','🎆','🎇'],
+  '🛍️ ช้อปปิ้ง': ['🛍️','👗','👘','👙','👚','👛','👜','👝','🎒','👒','🎩','🧢','💍','💄','👠','👡','👢','🥿','🧣','🧤','🧥','🩲','🩳','🩴','💎','⌚','🕶️','🥽','🪮'],
+  '🛡️ ประกัน/ออม': ['🛡️','🔐','🔒','🔓','🗝️','💰','🏦','📊','💹','📈','🪙','💎','🤝','📜','✍️','🔏'],
+  '👨‍👩‍👧 ครอบครัว': ['👨','👩','🧒','👦','👧','🧑','👴','👵','🧓','👨‍👩‍👦','👨‍👩‍👧','👪','🤱','🍼','🧸','🎀','🎁','💝','❤️','🩷','🧡','💛','💚','💙','💜'],
+  '🌿 ธรรมชาติ': ['🌿','🌱','🌾','🍀','🌸','🌺','🌻','🌹','🌷','🍁','🍂','🍃','🌴','🌵','🌊','⛰️','🏔️','🌋','🌤️','⛅','🌧️','⛈️','🌈','☀️','🌙','⭐','🌟','✨','❄️','🌊'],
+  '🎉 ทั่วไป': ['📦','❓','⭕','✅','❌','⚠️','🔔','🔕','📢','📣','💬','🗯️','💭','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🔺','🔻','💠','🔷','🔶','🔹','🔸','▶️','⏸️','⏹️','🔄','🔃','🔁','🔂'],
+};
+
+var _pickerSelectedIcon = '📦';
+var _pickerActiveTab = Object.keys(ICON_CATS)[0];
+var _pickerSearch = '';
+
+function openIconPicker(){
+  _pickerSelectedIcon = document.getElementById('nCatEm').value || '📦';
+  _pickerSearch = '';
+  document.getElementById('iconSearchInput').value = '';
+  buildIconTabs();
+  renderIconGrid();
+  document.getElementById('iconPickerOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('iconSearchInput').focus(), 250);
+}
+function closeIconPicker(){
+  document.getElementById('iconPickerOverlay').classList.remove('open');
+}
+function buildIconTabs(){
+  const tabs = document.getElementById('iconTabs');
+  tabs.innerHTML = Object.keys(ICON_CATS).map(k =>
+    `<button class="icon-tab${k===_pickerActiveTab?' active':''}" data-tabkey="${k.replace(/"/g,'&quot;')}" onclick="setIconTab(this.dataset.tabkey,this)">${k}</button>`
+  ).join('');
+}
+function setIconTab(key, el){
+  _pickerActiveTab = key;
+  _pickerSearch = '';
+  document.getElementById('iconSearchInput').value = '';
+  document.querySelectorAll('.icon-tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderIconGrid();
+}
+function filterIcons(q){
+  _pickerSearch = q.trim().toLowerCase();
+  renderIconGrid();
+}
+function renderIconGrid(){
+  const grid = document.getElementById('iconGrid');
+  let icons;
+  if(_pickerSearch){
+    // search all categories — simple: just show all icons flattened, filter by searching category key names
+    const allIcons = [];
+    Object.entries(ICON_CATS).forEach(([k,arr])=>{
+      if(k.toLowerCase().includes(_pickerSearch)) allIcons.push(...arr);
+    });
+    // deduplicate
+    icons = [...new Set(allIcons)];
+    if(!icons.length) icons = Object.values(ICON_CATS).flat();
+  } else {
+    icons = ICON_CATS[_pickerActiveTab] || [];
+  }
+  grid.innerHTML = icons.map(ic =>
+    `<div class="icon-cell${ic===_pickerSelectedIcon?' selected':''}" data-icon="${ic}" onclick="selectIcon(this.dataset.icon)">${ic}</div>`
+  ).join('');
+}
+function selectIcon(ic){
+  _pickerSelectedIcon = ic;
+  document.getElementById('nCatEm').value = ic;
+  document.getElementById('iconPickerPreviewBtn').textContent = ic;
+  // update selected state in grid
+  document.querySelectorAll('.icon-cell').forEach(c=>{
+    c.classList.toggle('selected', c.textContent===ic);
+  });
+  // short delay then close
+  setTimeout(closeIconPicker, 180);
+}
+
+// ── Transactions ──
+function renderRecentList(){
+  const el=document.getElementById('recentList');if(!el)return;
+  const fil=D.expenses.slice(0,8);
+  el.innerHTML=fil.length?fil.map(e=>txRow(e)).join(''):'<div class="txempty">ยังไม่มีรายการ</div>';
+}
+function buildTxFilters(){
+  const fc=document.getElementById('fCat');
+  if(fc){const all=[...(D.categories.expense||[]),...(D.categories.income||[])];fc.innerHTML='<option value="">ทุกหมวด</option>'+all.map(c=>`<option value="${esc(c.emoji+' '+c.name)}">${c.emoji} ${c.name}</option>`).join('')}
+  buildTxMonthStrip();
+}
+function txRow(e){
+  const m=getMem(e.who)||{emoji:'👤',name:e.who||'?'},mi=mIdx(e.who),col=mi>=0?mCol(mi):'#888070';
+  const isInc=e.type==='income',ac=isInc?'var(--inc)':'var(--exp)',ico=getIco(e.cat)||'📦';
+  const notePart=e.note&&e.note.trim()&&e.note.trim()!=='.'?`<span>· ${esc(e.note)}</span>`:'';
+  return`<div class="txi"><div class="txic" style="background:${col}18">${ico}</div><div class="txin"><div class="txde">${esc(e.desc)}</div><div class="txme"><span class="txdot" style="background:${col}"></span><span style="color:${col};font-weight:700">${m.emoji} ${esc(m.name)}</span><span>·</span><span>${e.cat||''}</span><span>·</span><span style="white-space:nowrap">${fmtDate(e.date)}</span>${notePart}</div></div><div style="text-align:right;flex-shrink:0"><div class="txam" style="color:${ac}">${isInc?'+':'-'}${fmt(e.amt)}</div><span class="tbadge ${isInc?'tbinc':'tbexp'}">${isInc?'รับ':'จ่าย'}</span></div><div class="txac"><button class="btn btn-gh btn-xs" onclick="openModal('${e.id}')">✏️</button><button class="btn btn-dng btn-xs" onclick="delEntry('${e.id}')">🗑</button></div></div>`;
+}
+function openModal(id){
+  const e=D.expenses.find(x=>x.id===id);if(!e)return;
+  const isInc=e.type==='income';
+  document.getElementById('editId').value=id;
+  document.getElementById('inDesc').value=e.desc;
+  document.getElementById('inAmt').value=e.amt;
+  document.getElementById('inMember').value=e.who;
+  document.getElementById('inDate').value=e.date;
+  document.getElementById('inNote').value=e.note||'';
+  document.getElementById('mtpExp').className='qa-tbtn exp'+(!isInc?' on':'');
+  document.getElementById('mtpInc').className='qa-tbtn inc'+(isInc?' on':'');
+  buildCatGrid('modalCatGrid',e.type||'expense');
+  setTimeout(()=>{document.querySelectorAll('#modalCatGrid .cchip').forEach(c=>{c.classList.remove('on','on-inc');if(c.dataset.name===e.cat)c.classList.add(isInc?'on-inc':'on')})},60);
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+function setMT(type){document.getElementById('mtpExp').className='qa-tbtn exp'+(type==='expense'?' on':'');document.getElementById('mtpInc').className='qa-tbtn inc'+(type==='income'?' on':'');buildCatGrid('modalCatGrid',type)}
+function getMT(){return document.getElementById('mtpInc').classList.contains('on')?'income':'expense'}
+function saveEntry(){
+  const desc=document.getElementById('inDesc').value.trim(),amt=parseFloat(document.getElementById('inAmt').value);
+  const who=document.getElementById('inMember').value,date=document.getElementById('inDate').value||today();
+  const cat=getSelCat('modalCatGrid'),note=document.getElementById('inNote').value.trim(),eid=document.getElementById('editId').value,type=getMT();
+  if(!desc||isNaN(amt)||amt<=0){toast('⚠️ กรอกข้อมูลให้ครบ','warn');return}
+  if(eid){const i=D.expenses.findIndex(e=>e.id===eid);if(i!==-1)D.expenses[i]={...D.expenses[i],type,desc,amt,who,date,cat,note};toast('✏️ แก้ไขแล้ว','success')}
+  else{D.expenses.unshift({id:uid(),type,desc,amt,who,date,cat,note,ts:Date.now()});toast('✅ บันทึกแล้ว','success')}
+  persist();closeModal();refreshUI();if(curPage==='transactions')refreshTx();renderRecentList();
+}
+async function delEntry(id){
+  const e=D.expenses.find(x=>x.id===id);
+  const ok=await customConfirm(`ลบ "${e?.desc||'รายการ'}"?`,e?`${e.type==='income'?'+':'-'}${fmt(e.amt)} · ${e.date}`:'','🗑️','🗑️ ลบ','danger');
+  if(!ok)return;
+  D.expenses=D.expenses.filter(x=>x.id!==id);persist();refreshUI();if(curPage==='transactions')refreshTx();renderRecentList();toast('🗑️ ลบแล้ว','warn')
+}
+
+// ── Recurring ──
+function setRT(type){recType=type;document.getElementById('rtpExp').className='qa-tbtn exp'+(type==='expense'?' on':'');document.getElementById('rtpInc').className='qa-tbtn inc'+(type==='income'?' on':'');buildCatGrid('recCatGrid',type)}
+function openRecModal(id){
+  document.getElementById('recEditId').value='';document.getElementById('recModalTitle').textContent='🔔 เพิ่มรายการประจำ';
+  document.getElementById('recDesc').value='';document.getElementById('recAmt').value='';document.getElementById('recNote').value='';
+  document.getElementById('recDue').value=futureDate(30);document.getElementById('recAlert').value='3';
+  document.getElementById('recFreq').value='monthly';document.getElementById('recMember').value=curUser;
+  document.getElementById('custDWrap').style.display='none';setRT('expense');
+  if(id){
+    const r=D.recurring.find(x=>x.id===id);if(!r)return;
+    document.getElementById('recEditId').value=id;document.getElementById('recModalTitle').textContent='✏️ แก้ไขรายการประจำ';
+    document.getElementById('recDesc').value=r.desc;document.getElementById('recAmt').value=r.amt;
+    document.getElementById('recNote').value=r.note||'';document.getElementById('recDue').value=r.dueDate;
+    document.getElementById('recAlert').value=r.alertDays;document.getElementById('recFreq').value=r.freq;
+    document.getElementById('recMember').value=r.who;
+    if(r.freq==='custom'){document.getElementById('custDWrap').style.display='grid';document.getElementById('recCustDays').value=r.customDays||90}
+    setRT(r.type||'expense');
+    setTimeout(()=>{document.querySelectorAll('#recCatGrid .cchip').forEach(c=>{c.classList.remove('on','on-inc');if(c.dataset.name===r.cat)c.classList.add(r.type==='income'?'on-inc':'on')})},60);
+  }
+  updRecPrev();document.getElementById('recModal').classList.add('open');
+}
+function closeRecModal(){document.getElementById('recModal').classList.remove('open')}
+function updRecPrev(){
+  const freq=document.getElementById('recFreq').value;
+  document.getElementById('custDWrap').style.display=freq==='custom'?'grid':'none';
+  const due=document.getElementById('recDue').value;
+  if(due){const d=daysUntil(due);document.getElementById('recPrev').textContent=d>0?`📅 อีก ${d} วัน (${due})`:d===0?'🔴 ครบกำหนดวันนี้!':'🔴 เลยมา '+Math.abs(d)+' วัน'}
+}
+function saveRec(){
+  const desc=document.getElementById('recDesc').value.trim(),amt=parseFloat(document.getElementById('recAmt').value);
+  const dueDate=document.getElementById('recDue').value,freq=document.getElementById('recFreq').value;
+  const who=document.getElementById('recMember').value,cat=getSelCat('recCatGrid');
+  const alertDays=parseInt(document.getElementById('recAlert').value)||3,note=document.getElementById('recNote').value.trim();
+  const customDays=parseInt(document.getElementById('recCustDays').value)||90;
+  if(!desc||isNaN(amt)||amt<=0||!dueDate){toast('⚠️ กรอกข้อมูลให้ครบ','warn');return}
+  const eid=document.getElementById('recEditId').value,obj={type:recType,desc,amt,cat,who,freq,customDays,dueDate,alertDays,note};
+  if(eid){const i=D.recurring.findIndex(r=>r.id===eid);if(i!==-1)D.recurring[i]={...D.recurring[i],...obj}}
+  else D.recurring.unshift({id:'r'+uid(),...obj});
+  persist();closeRecModal();renderRecurring();buildAlertBanner();toast('🔔 บันทึกแล้ว','success');
+}
+async function delRec(id){
+  const r=D.recurring.find(x=>x.id===id);
+  const ok=await customConfirm(`ลบ "${r?.desc||'รายการ'}"?`,r?`${fmt(r.amt)} · ${freqLbl(r)}`:'','🔔','🗑️ ลบ','danger');
+  if(!ok)return;
+  D.recurring=D.recurring.filter(r=>r.id!==id);persist();renderRecurring();buildAlertBanner();toast('🗑️ ลบแล้ว','warn')
+}
+function markDone(id){
+  const r=D.recurring.find(x=>x.id===id);if(!r)return;
+  D.expenses.unshift({id:uid(),type:r.type,desc:r.desc,amt:r.amt,who:r.who,date:today(),cat:r.cat,note:(r.note?r.note+' · ':'')+'(ประจำ)',ts:Date.now()});
+  const due=new Date(r.dueDate);
+  if(r.freq==='daily')due.setDate(due.getDate()+1);else if(r.freq==='weekly')due.setDate(due.getDate()+7);
+  else if(r.freq==='biweekly')due.setDate(due.getDate()+14);else if(r.freq==='monthly')due.setMonth(due.getMonth()+1);
+  else if(r.freq==='quarterly')due.setMonth(due.getMonth()+3);else if(r.freq==='biannual')due.setMonth(due.getMonth()+6);
+  else if(r.freq==='yearly')due.setFullYear(due.getFullYear()+1);else due.setDate(due.getDate()+(r.customDays||90));
+  const o=due.getTimezoneOffset()*6e4;r.dueDate=new Date(due-o).toISOString().slice(0,10);
+  persist();refreshUI();renderRecurring();buildAlertBanner();toast(`✅ "${r.desc}" บันทึก+ขยับวันแล้ว`,'success');
+}
+function renderRecurring(){
+  const el=document.getElementById('recList');if(!el)return;
+  if(!D.recurring.length){el.innerHTML='<div class="empty-state">🔔 ยังไม่มีรายการประจำ<br><small>กด + เพิ่ม เพื่อตั้งเตือน</small></div>';return}
+  const sorted=[...D.recurring].sort((a,b)=>daysUntil(a.dueDate)-daysUntil(b.dueDate));
+  const grp={overdue:[],soon:[],ok:[]};
+  sorted.forEach(r=>{const d=daysUntil(r.dueDate);if(d<0)grp.overdue.push(r);else if(d<=r.alertDays)grp.soon.push(r);else grp.ok.push(r)});
+  let html='';
+  const rg=(label,arr)=>{
+    if(!arr.length)return;
+    html+=`<div class="rgrp-hdr">${label} (${arr.length})</div>`;
+    arr.forEach(r=>{
+      const d=daysUntil(r.dueDate),isInc=r.type==='income',col=isInc?'var(--inc)':'var(--exp)',ico=getIco(r.cat)||'🔔';
+      const dueLabel=d<0?`เลย ${Math.abs(d)} วัน`:d===0?'วันนี้!':d===1?'พรุ่งนี้':`อีก ${d} วัน`;
+      const dueClass=d<0?'rtl-od':d<=r.alertDays?'rtl-sn':'rtl-ok';
+      const dt=new Date(r.dueDate),dayN=dt.getDate();
+      const dows=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      html+=`<div class="rtl-item"><div class="rtl-left"><div class="rtl-day" style="color:${col}">${String(dayN).padStart(2,'0')}</div><div class="rtl-dow">${dows[dt.getDay()]}</div><div class="rtl-line"></div></div><div class="rtl-body"><div class="rtl-name">${esc(r.desc)}</div><div class="rtl-meta"><span>${ico} ${r.cat||''}</span><span>·</span><span>${getMem(r.who)?.emoji||''} ${getMem(r.who)?.name||r.who}</span><span>·</span><span>${freqLbl(r)}</span>${r.note?`<span>· ${esc(r.note)}</span>`:''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0"><div class="rtl-amt" style="color:${col}">${isInc?'+':'-'}${fmt(r.amt)}</div><span class="rtl-badge ${dueClass}">${dueLabel}</span><div class="rtl-acts"><button class="btn btn-suc btn-xs" onclick="markDone('${r.id}')">✓</button><button class="btn btn-gh btn-xs" onclick="openRecModal('${r.id}')">✏️</button><button class="btn btn-dng btn-xs" onclick="delRec('${r.id}')">🗑</button></div></div></div>`;
+    });
+  };
+  rg('🚨 เลยกำหนด',grp.overdue);rg('⏰ ใกล้ถึง',grp.soon);rg('✅ กำหนดการ',grp.ok);
+  el.innerHTML=html;
+}
+
+// ── Alert banner ──
+function buildAlertBanner(){
+  const banner=document.getElementById('alertBanner');if(!banner)return;
+  const mp=mPfx(),mxp=D.expenses.filter(e=>e.date.startsWith(mp));
+  const fb=D.budgets.family||50000,tot=mxp.filter(e=>e.type!=='income').reduce((s,e)=>s+e.amt,0),fp=fb>0?tot/fb:0;
+  const items=[];
+  D.recurring.filter(r=>daysUntil(r.dueDate)<=r.alertDays).slice(0,2).forEach(r=>{
+    const d=daysUntil(r.dueDate);
+    const msg=d<0?`⛔ ${r.desc} เลย ${Math.abs(d)} วัน · ${fmt(r.amt)}`:d===0?`🔴 ${r.desc} วันนี้ · ${fmt(r.amt)}`:`⏰ ${r.desc} อีก ${d} วัน · ${fmt(r.amt)}`;
+    items.push({cls:d<=0?'al-dng':'al-wrn',msg});
+  });
+  D.members.forEach(m=>{
+    const bud=D.budgets[m.id]||0,sp=mxp.filter(e=>e.who===m.id&&e.type!=='income').reduce((s,e)=>s+e.amt,0),p=bud>0?sp/bud:0;
+    if(p>=1)items.push({cls:'al-dng',msg:`${m.emoji} ${m.name} เกินงบ ${Math.round(p*100)}%`});
+    else if(p>=0.85)items.push({cls:'al-wrn',msg:`${m.emoji} ${m.name} ใช้ ${Math.round(p*100)}%`});
+  });
+  banner.innerHTML=items.slice(0,3).map(i=>`<div class="al-item ${i.cls}"><span class="al-dot"></span>${i.msg}</div>`).join('');
+}
+
+// ── Charts ──
+var cLine,cPie,cBar,cMonth;
+function destroyCharts(){[cLine,cPie,cBar,cMonth].forEach(c=>{if(c)c.destroy()});cLine=cPie=cBar=cMonth=null}
+function switchChart(type,el){
+  document.querySelectorAll('.ctab').forEach(t=>t.classList.remove('active'));if(el)el.classList.add('active');
+  ['cLine','cPie','cBar','cMonth'].forEach(id=>{const cv=document.getElementById(id);if(cv)cv.style.display='none'});
+  const map={trend:'cLine',cat:'cPie',member:'cBar',monthly:'cMonth'};const t=map[type];if(t)document.getElementById(t).style.display='block';
+  updCharts();
+}
+function initCharts(){
+  Chart.defaults.color='#888070';Chart.defaults.font.family="'JetBrains Mono',monospace";Chart.defaults.font.size=10;
+  const base={responsive:true,maintainAspectRatio:false,animation:{duration:350},plugins:{legend:{display:false}}};
+  const g={color:'rgba(180,178,168,.4)',drawBorder:false};
+  cLine=new Chart(document.getElementById('cLine'),{type:'line',data:{labels:[],datasets:[{label:'จ่าย',data:[],borderColor:'#C0292A',backgroundColor:'rgba(192,41,42,.05)',fill:true,tension:.4,pointRadius:0,borderWidth:2},{label:'รับ',data:[],borderColor:'#1A6B3C',backgroundColor:'rgba(26,107,60,.05)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]},options:{...base,plugins:{legend:{display:true,labels:{boxWidth:10,font:{size:11}}}},scales:{y:{beginAtZero:true,grid:g,ticks:{maxTicksLimit:4}},x:{grid:{display:false},ticks:{maxTicksLimit:8}}}}});
+  cPie=new Chart(document.getElementById('cPie'),{type:'doughnut',data:{labels:[],datasets:[{data:[],backgroundColor:MC.map(c=>c+'cc'),borderWidth:0}]},options:{...base,plugins:{legend:{display:true,position:'right',labels:{boxWidth:10,padding:8,font:{size:10}}}},cutout:'58%'}});
+  cBar=new Chart(document.getElementById('cBar'),{type:'bar',data:{labels:[],datasets:[{label:'ใช้',data:[],backgroundColor:MC.map(c=>c+'bb'),borderRadius:4,borderSkipped:false},{label:'งบ',data:[],backgroundColor:'rgba(0,0,0,.06)',borderColor:'rgba(0,0,0,.1)',borderWidth:1,borderRadius:4,borderSkipped:false}]},options:{...base,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:g,ticks:{maxTicksLimit:4}},x:{grid:{display:false}}}}});
+  cMonth=new Chart(document.getElementById('cMonth'),{type:'bar',data:{labels:[],datasets:[{label:'รับ',data:[],backgroundColor:'rgba(26,107,60,.7)',borderRadius:4},{label:'จ่าย',data:[],backgroundColor:'rgba(192,41,42,.7)',borderRadius:4}]},options:{...base,plugins:{legend:{display:true,labels:{boxWidth:10,font:{size:11}}}},scales:{x:{grid:{display:false},ticks:{maxTicksLimit:6}},y:{beginAtZero:true,grid:g,ticks:{maxTicksLimit:4}}}}});
+}
+function updCharts(){
+  if(!cLine)return;
+  const mp=mPfx(),mxp=D.expenses.filter(e=>e.date.startsWith(mp));
+  const now=new Date(mp+'-01'),dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const dsExp=Array(dim).fill(0),dsInc=Array(dim).fill(0);
+  mxp.forEach(e=>{const d=parseInt(e.date.split('-')[2])-1;if(d>=0&&d<dim){if(e.type==='income')dsInc[d]+=e.amt;else dsExp[d]+=e.amt}});
+  cLine.data.labels=Array.from({length:dim},(_,i)=>i+1);cLine.data.datasets[0].data=dsExp;cLine.data.datasets[1].data=dsInc;cLine.update('none');
+  const cs={};mxp.filter(e=>e.type!=='income').forEach(e=>{cs[e.cat]=(cs[e.cat]||0)+e.amt});
+  const topCats=Object.entries(cs).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  cPie.data.labels=topCats.map(([k])=>k);cPie.data.datasets[0].data=topCats.map(([,v])=>v);cPie.update('none');
+  cBar.data.labels=D.members.map(m=>m.emoji+' '+m.name);
+  cBar.data.datasets[0].data=D.members.map(m=>mxp.filter(e=>e.who===m.id&&e.type!=='income').reduce((s,e)=>s+e.amt,0));
+  cBar.data.datasets[0].backgroundColor=D.members.map((_,i)=>mCol(i)+'bb');
+  cBar.data.datasets[1].data=D.members.map(m=>D.budgets[m.id]||0);cBar.update('none');
+  const lbls=[],incArr=[],expArr=[];
+  for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);const pf=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');lbls.push(String(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2));const ms=D.expenses.filter(e=>e.date.startsWith(pf));incArr.push(ms.filter(e=>e.type==='income').reduce((s,e)=>s+e.amt,0));expArr.push(ms.filter(e=>e.type!=='income').reduce((s,e)=>s+e.amt,0))}
+  cMonth.data.labels=lbls;cMonth.data.datasets[0].data=incArr;cMonth.data.datasets[1].data=expArr;cMonth.update('none');
+}
+
+// ── KPI / Budget refresh ──
+function refreshUI(){
+  const mp=mPfx(),td=today(),mxp=D.expenses.filter(e=>e.date.startsWith(mp));
+  const monExp=mxp.filter(e=>e.type!=='income').reduce((s,e)=>s+e.amt,0);
+  const monInc=mxp.filter(e=>e.type==='income').reduce((s,e)=>s+e.amt,0);
+  const net=monInc-monExp,todTot=D.expenses.filter(e=>e.date===td&&e.type!=='income').reduce((s,e)=>s+e.amt,0);
+  const txTod=D.expenses.filter(e=>e.date===td).length;
+  const fb=D.budgets.family||50000,famPct=Math.round(monExp/fb*100),famBarPct=Math.min(100,famPct);
+  const st=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+  st('kExp',fmt(monExp));st('kExpSub',mxp.filter(e=>e.type!=='income').length+' รายการ');
+  st('kInc',fmt(monInc));st('kIncSub','สุทธิ '+(net>=0?'+':'')+fmt(net));
+  st('kToday',fmt(todTot));st('kTodaySub',txTod+' รายการ');
+  const kl=document.getElementById('kLeft');if(kl){kl.textContent=fmt(fb-monExp);kl.className='kcard-val'+(fb-monExp<0?' red':'')}
+  st('kLeftSub','ใช้ '+famPct+'%');
+  const bars=document.getElementById('budBars');
+  if(bars){
+    const fRow=`<div class="brow"><div class="bav" style="background:#1A6B3C18;color:#1A6B3C">🏠</div><div class="bwrap"><div class="binfo"><span style="font-weight:700;font-size:14px">ครอบครัว</span><span>${fmt(monExp)} / ${fmt(fb)}</span></div><div class="btrack"><div class="bfill" style="width:${famBarPct}%;background:${famPct>=100?'var(--danger)':famPct>=80?'var(--warn)':'var(--grn)'}"></div></div></div><div class="bpct">${famPct}%</div></div>`;
+    const mRows=D.members.map((m,i)=>{const sp=mxp.filter(e=>e.who===m.id&&e.type!=='income').reduce((s,e)=>s+e.amt,0),bud=D.budgets[m.id]||0,pct=bud>0?Math.round(sp/bud*100):0,barPct=Math.min(100,pct),col=mCol(i);return`<div class="brow"><div class="bav" style="background:${col}18;color:${col}">${m.emoji}</div><div class="bwrap"><div class="binfo"><span style="font-weight:700;font-size:14px;color:${col}">${m.name}</span><span>${fmt(sp)} / ${fmt(bud)}</span></div><div class="btrack"><div class="bfill" style="width:${barPct}%;background:${pct>=100?'var(--danger)':pct>=80?'var(--warn)':col}"></div></div></div><div class="bpct" style="color:${pct>=100?'var(--danger)':col}">${pct}%</div></div>`}).join('');
+    bars.innerHTML=fRow+mRows;
+  }
+  buildMonthStrip();buildAlertBanner();updCharts();buildSmartAlert();
+}
+
+// ── Export ──
+function doExcel(){
+  const rows=D.expenses.map(e=>{const m=getMem(e.who)||{name:e.who};return{วันที่:e.date,ประเภท:e.type==='income'?'รายรับ':'รายจ่าย',รายการ:e.desc,หมวดหมู่:e.cat,จำนวน:e.amt,สมาชิก:m.name,หมายเหตุ:e.note||''}});
+  const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'รายการ');
+  const mp=mPfx(),mxp=D.expenses.filter(e=>e.date.startsWith(mp));
+  const sr=D.members.map(m=>({สมาชิก:m.emoji+' '+m.name,รายจ่าย:mxp.filter(e=>e.who===m.id&&e.type!=='income').reduce((s,e)=>s+e.amt,0),รายรับ:mxp.filter(e=>e.who===m.id&&e.type==='income').reduce((s,e)=>s+e.amt,0),งบ:D.budgets[m.id]||0}));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(sr),'สรุปสมาชิก');
+  XLSX.writeFile(wb,'famiglia-'+today()+'.xlsx');toast('📊 Export แล้ว','success');
+}
+function doBackup(){const blob=new Blob([JSON.stringify(D,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='famiglia-backup-'+today()+'.json';a.click();toast('💾 Backup แล้ว','success')}
+function doRestoreClick(){document.getElementById('restoreFile').click()}
+function doRestore(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d.members||!d.expenses){toast('⚠️ ไฟล์ไม่ถูกต้อง','warn');return}D=d;if(!D.settings)D.settings={lang:'th'};if(!D.recurring)D.recurring=[];if(!D.categories)D.categories=defCats();if(!D.budgets)D.budgets={family:50000};persist();init();toast('📥 Restore สำเร็จ','success')}catch{toast('⚠️ ไฟล์เสีย','warn')}};reader.readAsText(file);input.value=''}
+async function clearAll(){
+  const ok=await customConfirm('ล้างข้อมูลทั้งหมด?','ไม่สามารถกู้คืนได้!','⚠️','🗑️ ล้างทั้งหมด','danger');
+  if(!ok)return;
+  localStorage.removeItem(SK);D=defData();persist();init();toast('🗑️ ล้างแล้ว','warn')
+}
+
+// ── Custom Confirm Dialog ──
+var _confirmResolve = function(){};
+function safeConfirmResolve(val){
+  if(typeof _confirmResolve === 'function') _confirmResolve(val);
+}
+function customConfirm(msg, sub, icon, okLabel, okClass){
+  return new Promise(resolve => {
+    document.getElementById('confirmMsg').textContent = msg||'ยืนยัน?';
+    document.getElementById('confirmSub').textContent = sub||'';
+    document.getElementById('confirmIcon').textContent = icon||'⚠️';
+    document.getElementById('confirmOk').textContent = okLabel||'ยืนยัน';
+    document.getElementById('confirmOk').style.background = okClass==='danger'?'var(--danger)':okClass==='warn'?'var(--warn)':'var(--grn)';
+    document.getElementById('confirmOk').style.borderColor = okClass==='danger'?'var(--danger)':okClass==='warn'?'var(--warn)':'var(--grn)';
+    document.getElementById('confirmOverlay').classList.add('open');
+    _confirmResolve = (val) => {
+      const overlay = document.getElementById('confirmOverlay');
+      overlay.style.transition = 'none';
+      overlay.classList.remove('open');
+      // force reflow then restore transition
+      void overlay.offsetHeight;
+      overlay.style.transition = '';
+      _confirmResolve = function(){};
+      resolve(val);
+    };
+  });
+}
+
+
+const TC={success:'#1A6B3C',warn:'#C47A00',danger:'#C0292A',info:'#1A56A0',pri:'#1A6B3C'};
+function toast(msg,type='pri'){
+  const box=document.getElementById('toasts'),t=document.createElement('div');
+  t.className='toast';t.style.borderLeftColor=TC[type]||TC.pri;t.textContent=msg;box.appendChild(t);
+  setTimeout(()=>{t.remove()},2000);
+}
+
+// ── Keyboard ──
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeModal();closeRecModal()}
+  if(curPage==='add'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='SELECT'){
+    if(e.key>='0'&&e.key<='9')nk(e.key);
+    if(e.key==='Backspace')nk('DEL');
+    if(e.key==='.')nk('.');
+  }
+});
+
+
+// ══════════════════════════════════════════
+// CALCULATOR ENGINE (real operators)
+// stack item = { num, op }
+// op = operator BEFORE this number (stored when number is pushed)
+// e.g. "3 × 4" → [{num:3,op:null}, {num:4,op:'×'}]
+// ══════════════════════════════════════════
+
+function nkOp(op){
+  // % applies immediately to current number only
+  if(op === '%'){
+    if(calcVal !== ''){
+      const n = parseFloat(calcVal);
+      if(!isNaN(n)) calcVal = String(parseFloat((n/100).toFixed(10)));
+      updCalcAmt();
+    }
+    return;
+  }
+  if(calcVal !== ''){
+    const n = parseFloat(calcVal);
+    if(!isNaN(n)){
+      // store op that comes BEFORE this number = calcPending (operator pressed before typing this number)
+      calcExprStack.push({num:n, op: calcExprStack.length===0 ? null : calcPending||'+'});
+    }
+    calcVal = '';
+  }
+  // update pending op for the NEXT number
+  calcPending = op;
+  calcJustEvaled = false;
+  updCalcExpr();
+}
+
+function nkEq(){
+  if(calcVal === '' && calcExprStack.length === 0) return;
+  if(calcVal !== ''){
+    const n = parseFloat(calcVal);
+    if(!isNaN(n)){
+      calcExprStack.push({num:n, op: calcExprStack.length===0 ? null : calcPending||'+'});
+    }
+    calcVal = '';
+  }
+  if(calcExprStack.length === 0) return;
+  // evaluate: item.op is the operator BEFORE that item
+  let result = calcExprStack[0].num;
+  for(let i=1; i<calcExprStack.length; i++){
+    const op  = calcExprStack[i].op;
+    const num = calcExprStack[i].num;
+    if     (op==='÷'||op==='/') result = num!==0 ? result/num : 0;
+    else if(op==='×'||op==='*') result = result*num;
+    else if(op==='−'||op==='-') result = result-num;
+    else                        result = result+num;
+  }
+  calcExprStack = [];
+  calcPending = '';
+  calcVal = (result%1===0 && Math.abs(result)<1e12) ? String(result) : parseFloat(result.toFixed(8)).toString();
+  calcJustEvaled = true;
+  updCalcAmt();
+  updCalcExpr();
+}
+
+function updCalcExpr(){
+  const el = document.getElementById('calcExpr');
+  if(!el) return;
+  if(calcExprStack.length===0 && !calcPending){el.textContent=''; return;}
+  // each item's .op is the op before it, so display as: num0 op1 num1 op2 num2 ...
+  let txt = calcExprStack.map((item,i)=>{
+    const opStr = i===0 ? '' : ' '+(item.op||'+') + ' ';
+    return opStr + item.num.toLocaleString('th-TH',{maximumFractionDigits:2});
+  }).join('');
+  if(calcPending) txt += ' '+calcPending;
+  el.textContent = txt;
+}
+
+// ══════════════════════════════════════════
+// AUTO-SUGGEST
+// ══════════════════════════════════════════
+var sugIdx = -1;
+
+function buildSuggestHistory(){
+  // returns unique {desc, cat, type, amt, who, count} sorted by frequency
+  const map = {};
+  D.expenses.forEach(e => {
+    const key = e.desc.toLowerCase();
+    if(!map[key]) map[key] = {desc:e.desc, cat:e.cat, type:e.type, amt:e.amt, who:e.who, count:0};
+    map[key].count++;
+    // update with most recent
+    map[key].amt = e.amt; map[key].cat = e.cat; map[key].type = e.type;
+  });
+  return Object.values(map).sort((a,b) => b.count - a.count);
+}
+
+function onDescInput(val){
+  sugIdx = -1;
+  const list = document.getElementById('suggestList');
+  if(!list) return;
+  const q = val.trim().toLowerCase();
+  if(!q){list.className='suggest-list';return}
+  const hist = buildSuggestHistory();
+  const matches = hist.filter(h => h.desc.toLowerCase().includes(q)).slice(0,6);
+  if(!matches.length){list.className='suggest-list';return}
+  list.innerHTML = matches.map((h,i) => {
+    const ico = getIco(h.cat)||'📦';
+    const col = h.type==='income'?'var(--inc)':'var(--exp)';
+    return `<div class="sug-item" data-idx="${i}" onmousedown="applySuggest(${i})" data-desc="${esc(h.desc)}" data-cat="${esc(h.cat)}" data-type="${h.type}" data-amt="${h.amt}" data-who="${h.who}">
+      <span class="sug-ico">${ico}</span>
+      <span class="sug-main">${esc(h.desc)}</span>
+      <span class="sug-amt" style="color:${col}">${fmt(h.amt)}</span>
+    </div>`;
+  }).join('');
+  list._matches = matches;
+  list.className = 'suggest-list open';
+}
+
+function onDescKey(e){
+  const list = document.getElementById('suggestList');
+  const items = list ? list.querySelectorAll('.sug-item') : [];
+  if(e.key === 'ArrowDown'){e.preventDefault();sugIdx=Math.min(sugIdx+1,items.length-1);highlightSug(items)}
+  else if(e.key === 'ArrowUp'){e.preventDefault();sugIdx=Math.max(sugIdx-1,-1);highlightSug(items)}
+  else if(e.key === 'Enter' && sugIdx >= 0){e.preventDefault();applySuggest(sugIdx)}
+  else if(e.key === 'Escape'){closeSuggest()}
+  else if(e.key === 'Tab' && items.length > 0){e.preventDefault();applySuggest(Math.max(sugIdx,0))}
+}
+
+function highlightSug(items){
+  items.forEach((it,i) => it.classList.toggle('hi', i===sugIdx));
+  if(sugIdx>=0 && items[sugIdx]) items[sugIdx].scrollIntoView({block:'nearest'});
+}
+
+function applySuggest(idx){
+  const list = document.getElementById('suggestList');
+  if(!list || !list._matches) return;
+  const h = list._matches[idx];
+  if(!h) return;
+  document.getElementById('calcDesc').value = h.desc;
+  // fill cat
+  setET(h.type);
+  setTimeout(() => {
+    document.querySelectorAll('#catGrid .cchip').forEach(c => {
+      c.classList.remove('on','on-inc');
+      if(c.dataset.name === h.cat) c.classList.add(h.type==='income'?'on-inc':'on');
+    });
+    document.querySelectorAll('#catQuickGrid .qcat-btn').forEach(b => {
+      b.classList.remove('on','on-inc');
+      if(b.dataset.name === h.cat) b.classList.add(h.type==='income'?'on-inc':'on');
+    });
+  }, 30);
+  // fill member
+  const mem = document.getElementById('calcMember');
+  if(mem && h.who) mem.value = h.who;
+  closeSuggest();
+  // focus amount
+  setTimeout(()=>document.getElementById('calcAmt').parentElement?.querySelector('.nk')?.focus(), 50);
+}
+
+function closeSuggest(){
+  const list = document.getElementById('suggestList');
+  if(list) list.className = 'suggest-list';
+  sugIdx = -1;
+}
+
+// ══════════════════════════════════════════
+// UNDO (last action)
+// ══════════════════════════════════════════
+var undoStack = [];   // stores deleted entries
+
+function calcSaveWithUndo(){
+  if(!D.expenses) D.expenses = [];
+  calcSave();
+}
+
+
+
+// ══════════════════════════════════════════
+// SEARCH + SORT + FILTER  (full rewrite)
+// ══════════════════════════════════════════
+var txSort = 'date';
+var txViewMonth = '';
+
+function setSort(s, el){
+  txSort = s;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  refreshTx();
+}
+
+function clearSearch(){
+  const el = document.getElementById('txSearch');
+  if(el){ el.value=''; el.focus(); }
+  refreshTx();
+}
+
+function buildTxMonthStrip(){
+  const strip = document.getElementById('txMonthStrip');
+  if(!strip) return;
+  const months = [...new Set(D.expenses.map(e=>e.date.slice(0,7)))].sort().reverse().slice(0,12);
+  const active = txViewMonth;
+  const allChip = `<div class="mchip${active===''?' active':''}" onclick="setTxMonth('',this)">ทั้งหมด</div>`;
+  strip.innerHTML = allChip + months.map(m => {
+    const [y,mo] = m.split('-');
+    return `<div class="mchip${m===active?' active':''}" onclick="setTxMonth('${m}',this)">${mo}/${y.slice(2)}</div>`;
+  }).join('');
+}
+
+function setTxMonth(m, el){
+  txViewMonth = m;
+  document.querySelectorAll('#txMonthStrip .mchip').forEach(c=>c.classList.remove('active'));
+  if(el) el.classList.add('active');
+  refreshTx();
+}
+
+
+// ══════════════════════════════════════════
+// CALENDAR DATE PICKER (Transactions)
+// ══════════════════════════════════════════
+var calYear = new Date().getFullYear();
+var calMonth = new Date().getMonth(); // 0-based
+var calOpen = false;
+var txDateFilter = ''; // 'YYYY-MM-DD' or ''
+
+function toggleCal(){
+  calOpen = !calOpen;
+  const box = document.getElementById('calBox');
+  const tog = document.getElementById('calToggle');
+  if(calOpen){
+    box.style.display='block';
+    if(tog){tog.classList.add('open');}
+    renderCal();
+  } else {
+    box.style.display='none';
+    if(tog) tog.classList.remove('open');
+  }
+}
+
+function renderCal(){
+  const titleEl = document.getElementById('calTitle');
+  const gridEl = document.getElementById('calGrid');
+  if(!titleEl||!gridEl) return;
+  const MONTHS_TH=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const DAYS_TH=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  titleEl.textContent = MONTHS_TH[calMonth] + ' ' + (calYear+543);
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const todayStr = today();
+  const pfx = calYear+'-'+String(calMonth+1).padStart(2,'0');
+  // collect days that have transactions
+  const txDays = new Set(D.expenses.filter(e=>e.date.startsWith(pfx)).map(e=>e.date.slice(8,10).replace(/^0/,'')));
+  let html = DAYS_TH.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  // empty cells before first
+  for(let i=0;i<firstDay;i++) html+=`<div class="cal-day empty"></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds = pfx+'-'+String(d).padStart(2,'0');
+    const cls = [
+      'cal-day',
+      ds===todayStr?'today':'',
+      ds===txDateFilter?'selected':'',
+      txDays.has(String(d))?'has-tx':''
+    ].filter(Boolean).join(' ');
+    html+=`<div class="${cls}" onclick="setCalDay('${ds}')">${d}</div>`;
+  }
+  gridEl.innerHTML=html;
+  // update toggle text
+  const tog=document.getElementById('calToggleText');
+  if(tog) tog.textContent = txDateFilter ? `📅 ${txDateFilter}  ×` : '📅 เลือกดูตามวันที่';
+}
+
+function setCalDay(ds){
+  if(txDateFilter===ds){ txDateFilter=''; }
+  else { txDateFilter=ds; }
+  renderCal();
+  refreshTx();
+}
+
+function calPrev(){
+  calMonth--;
+  if(calMonth<0){calMonth=11;calYear--;}
+  renderCal();
+}
+function calNext(){
+  calMonth++;
+  if(calMonth>11){calMonth=0;calYear++;}
+  renderCal();
+}
+
+function refreshTx(){
+  refreshTxWithCal();
+  if(calOpen) renderCal();
+}
+
+// Override to inject txDateFilter
+function refreshTxWithCal(){
+  const fType=document.getElementById('fType')?.value||'';
+  const fMem=document.getElementById('fMember')?.value||'';
+  const fCat=document.getElementById('fCat')?.value||'';
+  const q=(document.getElementById('txSearch')?.value||'').trim().toLowerCase();
+  let fil=[...D.expenses];
+  if(txDateFilter) fil=fil.filter(e=>e.date===txDateFilter);
+  else if(txViewMonth) fil=fil.filter(e=>e.date.startsWith(txViewMonth));
+  if(fType) fil=fil.filter(e=>e.type===fType);
+  if(fMem) fil=fil.filter(e=>e.who===fMem);
+  if(fCat) fil=fil.filter(e=>e.cat===fCat);
+  if(q) fil=fil.filter(e=>e.desc.toLowerCase().includes(q)||e.cat.toLowerCase().includes(q)||(e.note||'').toLowerCase().includes(q)||(getMem(e.who)?.name||'').toLowerCase().includes(q));
+  if(txSort==='date') fil.sort((a,b)=>(b.ts||0)-(a.ts||0));
+  else if(txSort==='amt-d') fil.sort((a,b)=>b.amt-a.amt);
+  else if(txSort==='amt-a') fil.sort((a,b)=>a.amt-b.amt);
+  else if(txSort==='desc') fil.sort((a,b)=>a.desc.localeCompare(b.desc,'th'));
+  else if(txSort==='cat') fil.sort((a,b)=>(a.cat||'').localeCompare(b.cat||'','th'));
+  else if(txSort==='who') fil.sort((a,b)=>(getMem(a.who)?.name||'').localeCompare(getMem(b.who)?.name||'','th'));
+  const total=fil.filter(e=>e.type!=='income').reduce((s,e)=>s+e.amt,0);
+  const inc=fil.filter(e=>e.type==='income').reduce((s,e)=>s+e.amt,0);
+  const el=document.getElementById('txTotal');
+  if(el) el.textContent=`${fil.length} รายการ · จ่าย ${fmt(total)} · รับ ${fmt(inc)}`;
+  document.getElementById('txList').innerHTML=fil.slice(0,300).map(e=>txRow(e)).join('')||'<div class="txempty">🧾 ไม่พบรายการ</div>';
+}
+
+// ══════════════════════════════════════════
+// SMART BUDGET ALERT SYSTEM (World-class AI-style)
+// ══════════════════════════════════════════
+var smartAlertDismissed = {};
+
+function buildSmartAlert(){
+  const mp=mPfx(), mxp=D.expenses.filter(e=>e.date.startsWith(mp));
+  const fb=D.budgets.family||50000;
+  const monExp=mxp.filter(e=>e.type!=='income').reduce((s,e)=>s+e.amt,0);
+  const monInc=mxp.filter(e=>e.type==='income').reduce((s,e)=>s+e.amt,0);
+  const daysInMonth=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
+  const dayOfMonth=new Date().getDate();
+  const daysPassed=dayOfMonth;
+  const daysLeft=daysInMonth-dayOfMonth;
+  const dailyAvgSoFar=daysPassed>0?monExp/daysPassed:0;
+  const projectedMonthly=dailyAvgSoFar*daysInMonth;
+
+  const alerts=[];
+
+  // 1. Family budget alerts - projection-based
+  const famPct=fb>0?monExp/fb:0;
+  if(famPct>=1){
+    alerts.push({type:'danger',icon:'🚨',msg:'งบครอบครัวเกินแล้ว!',sub:`ใช้ไป ${fmt(monExp)} จากงบ ${fmt(fb)} (เกิน ${fmt(monExp-fb)})`});
+  } else if(projectedMonthly>fb && famPct>=0.5){
+    const proj=Math.round(projectedMonthly/fb*100);
+    alerts.push({type:'warn',icon:'⚠️',msg:`คาดว่าจะเกินงบ ${proj}% สิ้นเดือน`,sub:`ใช้ ${fmt(monExp)}/${fmt(fb)} · เฉลี่ย ${fmt(Math.round(dailyAvgSoFar))}/วัน · เหลือ ${daysLeft} วัน`});
+  } else if(famPct>=0.85){
+    alerts.push({type:'warn',icon:'💸',msg:`งบเหลือน้อย — ใช้ไปแล้ว ${Math.round(famPct*100)}%`,sub:`เหลือ ${fmt(fb-monExp)} สำหรับอีก ${daysLeft} วัน (${fmt(Math.round((fb-monExp)/Math.max(daysLeft,1)))}/วัน)`});
+  } else if(famPct>=0.6 && daysLeft<=10){
+    alerts.push({type:'warn',icon:'📉',msg:`ปลายเดือนแล้ว — ระวังใช้จ่าย`,sub:`ใช้ ${fmt(monExp)} ยังเหลือ ${fmt(fb-monExp)} สำหรับ ${daysLeft} วัน`});
+  }
+
+  // 2. Member-specific alerts
+  D.members.forEach(m=>{
+    const bud=D.budgets[m.id]||0; if(!bud) return;
+    const sp=mxp.filter(e=>e.who===m.id&&e.type!=='income').reduce((s,e)=>s+e.amt,0);
+    const p=bud>0?sp/bud:0;
+    const key='mem_'+m.id;
+    if(p>=1&&!smartAlertDismissed[key+'_over']){
+      alerts.push({type:'danger',icon:m.emoji,msg:`${m.name} ใช้เกินงบแล้ว (${Math.round(p*100)}%)`,sub:`จ่าย ${fmt(sp)} จากงบ ${fmt(bud)}`,id:key+'_over'});
+    } else if(p>=0.85&&!smartAlertDismissed[key+'_warn']){
+      alerts.push({type:'warn',icon:m.emoji,msg:`${m.name} ใกล้เต็มงบ — ใช้ ${Math.round(p*100)}%`,sub:`เหลือ ${fmt(bud-sp)} จาก ${fmt(bud)}`,id:key+'_warn'});
+    }
+  });
+
+  // 3. Recurring upcoming
+  D.recurring.filter(r=>r.type==='expense').forEach(r=>{
+    const d=daysUntil(r.dueDate);
+    if(d<0){
+      alerts.push({type:'danger',icon:'🔔',msg:`${r.desc} เลยกำหนดแล้ว ${Math.abs(d)} วัน`,sub:`${fmt(r.amt)} · ${getMem(r.who)?.name||''}`,id:'rec_'+r.id});
+    } else if(d<=r.alertDays){
+      const budLeft=fb-monExp;
+      const canAfford=budLeft>=r.amt;
+      alerts.push({type:canAfford?'warn':'danger',icon:'⏰',msg:`${r.desc} ครบกำหนดอีก ${d===0?'วันนี้!':d+' วัน'}`,sub:`${fmt(r.amt)} · ${canAfford?'งบพอ ✓':'งบอาจไม่พอ ⚠️'}`,id:'rec_'+r.id});
+    }
+  });
+
+  const box=document.getElementById('smartAlert');
+  if(!box) return;
+  if(!alerts.length){box.innerHTML='';return;}
+  // show top 2 alerts max
+  box.innerHTML=alerts.slice(0,2).map((a,i)=>{
+    const cls=a.type==='danger'?'sab-danger':'sab-warn';
+    return `<div class="smart-alert-bar ${cls}" id="sab_${i}">
+      <span class="sab-icon">${a.icon}</span>
+      <div class="sab-msg">${esc(a.msg)}<div class="sab-sub">${esc(a.sub||'')}</div></div>
+      <span class="sab-dismiss" onclick="dismissSmartAlert(${i},'${a.id||''}')">✕</span>
+    </div>`;
+  }).join('');
+}
+
+function dismissSmartAlert(idx, id){
+  if(id) smartAlertDismissed[id]=true;
+  const el=document.getElementById('sab_'+idx);
+  if(el){el.style.transition='all .25s';el.style.opacity='0';el.style.maxHeight='0';el.style.padding='0';setTimeout(()=>buildSmartAlert(),250);}
+}
+
+// ══════════════════════════════════════════
+// GOOGLE DRIVE BACKUP
+// ══════════════════════════════════════════
+var GD = {
+  CLIENT_ID: '529436503721-famiglia-gdrive.apps.googleusercontent.com',
+  // ↑ placeholder — user must set their own Client ID in settings
+  SCOPES: 'https://www.googleapis.com/auth/drive.appdata',
+  token: null,
+  ready: false
+};
+
+// Load Client ID from localStorage if user saved one
+function gdLoadClientId(){
+  const saved = localStorage.getItem('gd_client_id');
+  if(saved) GD.CLIENT_ID = saved;
+}
+gdLoadClientId();
+
+function gdIsConfigured(){
+  return GD.CLIENT_ID && GD.CLIENT_ID.includes('.apps.googleusercontent.com') && !GD.CLIENT_ID.startsWith('529436503721-famiglia');
+}
+
+function gdSignIn(){
+  if(!gdIsConfigured()){
+    openGDriveSettings();
+    return;
+  }
+  try {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GD.CLIENT_ID,
+      scope: GD.SCOPES,
+      callback: (resp) => {
+        if(resp.error){ toast('⚠️ ยกเลิก Sign In','warn'); return; }
+        GD.token = resp.access_token;
+        GD.ready = true;
+        localStorage.setItem('gd_token_hint','1');
+        updateGDriveUI();
+        toast('✅ เชื่อมต่อ Google Drive แล้ว','success');
+      }
+    });
+    client.requestAccessToken({prompt:'consent'});
+  } catch(e) {
+    toast('⚠️ Google API ยังโหลดไม่เสร็จ ลองใหม่สักครู่','warn');
+  }
+}
+
+function gdSignOut(){
+  if(GD.token){
+    try { google.accounts.oauth2.revoke(GD.token); } catch(e){}
+  }
+  GD.token = null;
+  GD.ready = false;
+  localStorage.removeItem('gd_token_hint');
+  updateGDriveUI();
+  toast('👋 ออกจาก Google Drive แล้ว','info');
+}
+
+function updateGDriveUI(){
+  const btnSignIn = document.getElementById('gdSignInBtn');
+  const btnSignOut = document.getElementById('gdSignOutBtn');
+  const btnBackup = document.getElementById('gdBackupBtn');
+  const btnRestore = document.getElementById('gdRestoreBtn');
+  const statusEl = document.getElementById('gdStatus');
+  if(!btnSignIn) return;
+  if(GD.ready){
+    btnSignIn.style.display='none';
+    btnSignOut.style.display='flex';
+    btnBackup.disabled=false;
+    btnRestore.disabled=false;
+    if(statusEl) statusEl.textContent='🟢 เชื่อมต่อแล้ว';
+    if(statusEl) statusEl.style.color='var(--inc)';
+  } else {
+    btnSignIn.style.display='flex';
+    btnSignOut.style.display='none';
+    btnBackup.disabled=true;
+    btnRestore.disabled=true;
+    if(statusEl) statusEl.textContent='⚪ ยังไม่ได้เชื่อมต่อ';
+    if(statusEl) statusEl.style.color='var(--txt3)';
+  }
+}
+
+async function gdBackup(){
+  if(!GD.ready){ toast('⚠️ กรุณา Sign In ก่อน','warn'); return; }
+  const btnBackup = document.getElementById('gdBackupBtn');
+  if(btnBackup){ btnBackup.disabled=true; btnBackup.textContent='⏳ กำลังบันทึก...'; }
+  try {
+    const filename = 'famiglia-backup-'+today()+'.json';
+    const content = JSON.stringify(D, null, 2);
+    // Search for existing backup to update instead of duplicate
+    const searchResp = await fetch(
+      'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name%3D%27famiglia-latest.json%27&fields=files(id)',
+      { headers: { Authorization: 'Bearer '+GD.token } }
+    );
+    const searchData = await searchResp.json();
+    let fileId = searchData.files?.[0]?.id || null;
+
+    const meta = { name: 'famiglia-latest.json', parents: fileId ? undefined : ['appDataFolder'] };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(meta)], {type:'application/json'}));
+    form.append('file', new Blob([content], {type:'application/json'}));
+
+    const url = fileId
+      ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    const method = fileId ? 'PATCH' : 'POST';
+
+    const resp = await fetch(url, { method, headers: { Authorization: 'Bearer '+GD.token }, body: form });
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+
+    // Also save a dated snapshot
+    const snapForm = new FormData();
+    snapForm.append('metadata', new Blob([JSON.stringify({name:filename,parents:['appDataFolder']})],{type:'application/json'}));
+    snapForm.append('file', new Blob([content],{type:'application/json'}));
+    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method:'POST', headers:{Authorization:'Bearer '+GD.token}, body:snapForm
+    });
+
+    toast('☁️ Backup ไป Google Drive แล้ว','success');
+    showGDriveHistory();
+  } catch(e) {
+    console.error('GD backup error:',e);
+    if(e.message&&e.message.includes('401')){ GD.ready=false; GD.token=null; updateGDriveUI(); toast('⚠️ Session หมดอายุ กรุณา Sign In ใหม่','warn'); }
+    else toast('⚠️ Backup ไม่สำเร็จ: '+e.message,'warn');
+  } finally {
+    if(btnBackup){ btnBackup.disabled=false; btnBackup.textContent='☁️ Backup ขึ้น Drive'; }
+  }
+}
+
+async function gdRestore(){
+  if(!GD.ready){ toast('⚠️ กรุณา Sign In ก่อน','warn'); return; }
+  const btnRestore = document.getElementById('gdRestoreBtn');
+  if(btnRestore){ btnRestore.disabled=true; btnRestore.textContent='⏳ กำลังโหลด...'; }
+  try {
+    // List all backup files
+    const resp = await fetch(
+      'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name,modifiedTime)&orderBy=modifiedTime+desc&pageSize=20',
+      { headers: { Authorization: 'Bearer '+GD.token } }
+    );
+    const data = await resp.json();
+    const files = (data.files||[]).filter(f=>f.name.includes('famiglia'));
+    if(!files.length){ toast('⚠️ ไม่พบ Backup ใน Drive','warn'); return; }
+    showGDriveRestoreDialog(files);
+  } catch(e) {
+    console.error('GD list error:',e);
+    toast('⚠️ โหลดรายการไม่สำเร็จ','warn');
+  } finally {
+    if(btnRestore){ btnRestore.disabled=false; btnRestore.textContent='📥 Restore จาก Drive'; }
+  }
+}
+
+async function gdRestoreFile(fileId, fileName){
+  const ok = await customConfirm('Restore จาก Drive?', fileName+'\nข้อมูลปัจจุบันจะถูกแทนที่', '☁️', '📥 Restore', 'info');
+  if(!ok) return;
+  document.getElementById('gdRestoreDialog')?.remove();
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: 'Bearer '+GD.token } }
+    );
+    const d = await resp.json();
+    if(!d.members||!d.expenses){ toast('⚠️ ไฟล์ไม่ถูกต้อง','warn'); return; }
+    D=d;
+    if(!D.settings)D.settings={lang:'th'};
+    if(!D.recurring)D.recurring=[];
+    if(!D.categories)D.categories=defCats();
+    if(!D.budgets)D.budgets={family:50000};
+    persist(); init();
+    toast('📥 Restore จาก Google Drive สำเร็จ!','success');
+  } catch(e) {
+    toast('⚠️ Restore ไม่สำเร็จ','warn');
+  }
+}
+
+function showGDriveRestoreDialog(files){
+  let existing = document.getElementById('gdRestoreDialog');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'gdRestoreDialog';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:0';
+  overlay.onclick = e => { if(e.target===overlay) overlay.remove(); };
+  const fmtDT = ts => {
+    const d = new Date(ts);
+    return d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})+' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  };
+  overlay.innerHTML = `
+    <div style="background:var(--surf);border-radius:var(--r) var(--r) 0 0;width:100%;max-width:480px;max-height:70vh;overflow-y:auto;box-shadow:var(--sh3)">
+      <div style="padding:16px;border-bottom:1.5px solid var(--bdr);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800;font-size:15px">☁️ เลือก Backup</div>
+        <button onclick="document.getElementById('gdRestoreDialog').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--txt3)">✕</button>
+      </div>
+      <div style="padding:8px">
+        ${files.map(f=>`
+          <div onclick="gdRestoreFile('${f.id}','${f.name}')" style="display:flex;align-items:center;gap:12px;padding:13px 12px;border-radius:var(--r2);cursor:pointer;border-bottom:1px solid var(--bdr);transition:background .12s" onmouseover="this.style.background='var(--surf2)'" onmouseout="this.style.background=''">
+            <span style="font-size:22px">📄</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${f.name}</div>
+              <div style="font-size:11px;color:var(--txt3)">🕐 ${fmtDT(f.modifiedTime)}</div>
+            </div>
+            <span style="color:var(--grn);font-size:13px;font-weight:700">เลือก →</span>
+          </div>
+        `).join('')}
+      </div>
+      <div style="padding:12px 16px;text-align:center;font-size:11px;color:var(--txt3)">ไฟล์เก็บใน Google Drive AppData (ส่วนตัว)</div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function showGDriveHistory(){
+  if(!GD.ready) return;
+  try {
+    const resp = await fetch(
+      'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name,modifiedTime,size)&orderBy=modifiedTime+desc&pageSize=10',
+      { headers: { Authorization: 'Bearer '+GD.token } }
+    );
+    const data = await resp.json();
+    const files = (data.files||[]).filter(f=>f.name.includes('famiglia'));
+    const el = document.getElementById('gdHistory');
+    if(!el) return;
+    if(!files.length){ el.innerHTML='<div style="color:var(--txt3);font-size:12px;padding:8px 0">ยังไม่มี Backup</div>'; return; }
+    el.innerHTML = files.slice(0,5).map(f=>{
+      const d = new Date(f.modifiedTime);
+      const dt = d.toLocaleDateString('th-TH',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--bdr);font-size:12px">
+        <span style="color:var(--txt2)">📄 ${f.name.replace('famiglia-','').replace('.json','')}</span>
+        <span style="color:var(--txt3)">${dt}</span>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+function openGDriveSettings(){
+  document.getElementById('gdSettingsPanel').style.display=
+    document.getElementById('gdSettingsPanel').style.display==='none'?'block':'none';
+}
+
+function saveGDriveClientId(){
+  const val = (document.getElementById('gdClientIdInput').value||'').trim();
+  if(!val||!val.includes('.apps.googleusercontent.com')){
+    toast('⚠️ Client ID ไม่ถูกต้อง','warn'); return;
+  }
+  GD.CLIENT_ID = val;
+  localStorage.setItem('gd_client_id', val);
+  document.getElementById('gdSettingsPanel').style.display='none';
+  toast('✅ บันทึก Client ID แล้ว — กด Sign In ได้เลย','success');
+}
+
+// ── Init ──
+function init(){
+  D=load();
+  buildFNav();buildMemBudInputs();buildMemSelects();loadBudgetInputs();
+  buildCatGrid('catGrid','expense');buildCatGrid('modalCatGrid','expense');buildCatGrid('recCatGrid','expense');
+  destroyCharts();initCharts();refreshUI();renderRecentList();
+  document.getElementById('calcDate').value=today();
+  const m=getMem(curUser)||D.members[0];
+  if(m){curUser=m.id;document.getElementById('curEm').textContent=m.emoji;document.getElementById('curNm').textContent=m.name;document.getElementById('cDot').style.background=mCol(mIdx(m.id))}
+  const lang=D.settings?.lang||'th';
+
+  updCalcAmt();
+  buildSmartAlert();
+  // set calendar to current month
+  calYear=new Date().getFullYear();calMonth=new Date().getMonth();
+  // sync GD UI state (sign-in button / status badge)
+  updateGDriveUI();
+  toast('✅ พร้อมใช้งาน','success');
+}
+init();
+
+// ══════════════════════════════════════════
+// FIREBASE INIT — ต้องอยู่หลัง init() เสมอ
+// ══════════════════════════════════════════
+(function startFirebase() {
+  try {
+    if (typeof firebase === 'undefined') {
+      showSyncStatus('⚠️ ออฟไลน์');
+      return;
+    }
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    var _fbdb = firebase.database();
+    _fbRef = _fbdb.ref('famiglia');
+    showSyncStatus('🔄 กำลังเชื่อมต่อ...');
+
+    // real-time listener
+    _fbRef.on('value', function(snap) {
+      var remote = snap.val();
+      if (!remote) {
+        // ยังไม่มีข้อมูลใน Firebase → push local ขึ้น
+        _fbReady = true;
+        persistToFirebase();
+        return;
+      }
+      // merge fields
+      if (!remote.settings)  remote.settings  = {lang:'th'};
+      if (!remote.recurring) remote.recurring = [];
+      if (!remote.budgets)   remote.budgets   = {family:50000};
+      if (!remote.budgets.family) remote.budgets.family = 50000;
+      if (remote.members) remote.members.forEach(function(m){
+        if (remote.budgets[m.id] === undefined) remote.budgets[m.id] = 0;
+      });
+      if (!remote.categories || !remote.categories.expense || !remote.categories.income) {
+        remote.categories = defCats();
+      }
+      // ถ้าเพิ่งบันทึก local ไปไม่เกิน 3 วิ — ข้าม re-render เพื่อไม่ให้กระพริบ
+      if (Date.now() - _localSaveTs < 3000) {
+        _fbReady = true;
+        showSyncStatus('☁️ ซิงค์แล้ว');
+        return;
+      }
+      D = remote;
+      localStorage.setItem(SK, JSON.stringify(D));
+      _fbReady = true;
+      // re-render UI
+      destroyCharts(); initCharts(); refreshUI(); renderRecentList();
+      buildSmartAlert();
+      if (typeof buildTxMonthStrip === 'function') buildTxMonthStrip();
+      if (typeof refreshTx === 'function') refreshTx();
+      showSyncStatus('📡 ซิงค์แล้ว');
+    });
+  } catch(e) {
+    console.error('Firebase error:', e);
+    showSyncStatus('⚠️ Firebase error: ' + e.message);
+  }
+})();
+
+// ── Claude Scroll Buttons ──
+function scrollToTop() {
+  const el = document.getElementById('content');
+  if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function scrollToBottom() {
+  const el = document.getElementById('content');
+  if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+}
+(function() {
+  const btns = document.getElementById('scrollBtns');
+  const upBtn = document.getElementById('scrollUpBtn');
+  const downBtn = document.getElementById('scrollDownBtn');
+  const el = document.getElementById('content');
+  if (!btns || !el) return;
+  function updateBtns() {
+    const atTop = el.scrollTop <= 50;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 50;
+    const canScroll = el.scrollHeight > el.clientHeight + 50;
+    if (!canScroll) { btns.classList.remove('visible'); return; }
+    btns.classList.add('visible');
+    upBtn.style.opacity = atTop ? '0.25' : '1';
+    upBtn.style.pointerEvents = atTop ? 'none' : 'all';
+    downBtn.style.opacity = atBottom ? '0.25' : '1';
+    downBtn.style.pointerEvents = atBottom ? 'none' : 'all';
+  }
+  el.addEventListener('scroll', updateBtns, { passive: true });
+  // re-check on page change
+  const obs = new MutationObserver(updateBtns);
+  obs.observe(el, { childList: true, subtree: true });
+  setTimeout(updateBtns, 500);
+})();
+</script>
+
+<!-- ── Icon Picker ── -->
+<div id="iconPickerOverlay" onclick="if(event.target===this)closeIconPicker()">
+  <div id="iconPickerPanel">
+    <div id="iconPickerHeader">
+      <div id="iconPickerTitle">
+        <span>🎨 เลือก Icon</span>
+        <button class="btn btn-gh btn-xs" onclick="closeIconPicker()">✕ ปิด</button>
+      </div>
+      <input id="iconSearchInput" placeholder="🔍 ค้นหา icon..." oninput="filterIcons(this.value)" autocomplete="off"/>
+    </div>
+    <div class="icon-tabs" id="iconTabs"></div>
+    <div id="iconGrid"></div>
+  </div>
+</div>
+
+<!-- Claude Scroll Buttons -->
+<div id="scrollBtns">
+  <button id="scrollUpBtn" class="scroll-claude-btn" onclick="scrollToTop()" aria-label="เลื่อนขึ้นบนสุด">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
+  <button id="scrollDownBtn" class="scroll-claude-btn" onclick="scrollToBottom()" aria-label="เลื่อนลงล่างสุด">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  </button>
+</div>
+<div id="syncStatus"></div>
+</body>
+</html>
